@@ -27,6 +27,7 @@ mod find;
 mod keywords;
 mod misc;
 mod operators;
+mod platform;
 mod scan;
 
 pub(crate) use disambiguate::State as DisambiguateState;

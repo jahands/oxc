@@ -25,19 +25,6 @@ pub use token::{KW_KIND_BASE, TRIVIA_MAX, TRIVIA_MIN, TokenKind, token_flags};
 
 pub const PAD: usize = 64;
 
-// Neon is required on aarch64. In practice, this rules nothing out:
-//
-// - Every aarch64 target which has `std` enables `neon` by default.
-//   The only ones which don't are bare-metal `*-none-softfloat` targets, which can't build this crate anyway.
-// - Disabling `neon` with `-C target-feature=-neon` breaks the target's ABI.
-//   rustc already warns about that, and says it will become a hard error.
-//
-// So aarch64 builds never need the generic implementation of anything which has a Neon implementation.
-const _: () = assert!(
-    !cfg!(target_arch = "aarch64") || cfg!(target_feature = "neon"),
-    "`oxc_lexer` requires the `neon` target feature on aarch64"
-);
-
 /// Which implementation of the lexer is compiled in.
 ///
 /// - `"AVX2"`: x86_64 with `avx2`, `bmi2` and `popcnt` target features enabled.
