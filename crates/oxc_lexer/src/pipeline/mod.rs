@@ -37,6 +37,7 @@ use classify::classify;
 use coalesce::{KWB, coalesce};
 use compress::{STAGE_CAP, compress, write_sentinels};
 use misc::{misc_post, misc_pre};
+use platform::{Features, Platform, platform_select};
 
 pub struct Lexer {
     word: Vec<u64>,
@@ -56,10 +57,13 @@ pub struct Lexer {
     pub sig_len: usize,
     out_cap: usize,
     pub lanes: Lanes,
+    platform: Platform,
 }
 
 impl Lexer {
     pub fn new() -> Lexer {
+        let platform = Platform::detect();
+
         init_pair_luts();
 
         Lexer {
@@ -80,6 +84,7 @@ impl Lexer {
             sig_len: 0,
             out_cap: 0,
             lanes: Lanes::default(),
+            platform,
         }
     }
 
@@ -150,7 +155,11 @@ impl Lexer {
             return 0;
         }
 
-        let w = self.pipeline(src, n, out_kinds, out_spans, jsx, ts, vutf8);
+        let w = platform_select!(self.platform, {
+            Avx2(feat) => self.pipeline(src, n, out_kinds, out_spans, jsx, ts, vutf8, feat),
+            Neon(feat) => self.pipeline(src, n, out_kinds, out_spans, jsx, ts, vutf8, feat),
+            Generic(feat) => self.pipeline(src, n, out_kinds, out_spans, jsx, ts, vutf8, feat),
+        });
         self.sig_len = w;
         w
     }
@@ -164,6 +173,7 @@ impl Lexer {
         jsx: bool,
         ts: bool,
         vutf8: bool,
+        feat: impl Features,
     ) -> usize {
         let nb = n.div_ceil(64);
         let sp = src.as_ptr();
@@ -180,7 +190,7 @@ impl Lexer {
         // Keyword recognition is mode-scoped: the TS set (and its wider
         // kwinit letter class) only ever sees TS input, so JS lexing is
         // byte-identical to a build without it.
-        classify(ts, sp, n, nb, word, st, kwinit, opch, digit, dot, misc, kind);
+        classify(ts, sp, n, nb, word, st, kwinit, opch, digit, dot, misc, kind, feat);
         let nesc = misc_pre(sp, n, nb, st, word, misc, kind, vutf8, &mut self.lanes);
         carve(src, n, st, kind, opch, word, digit, dot, kwinit, jsx, ts, &mut self.lanes);
         coalesce(sp, n, st, opch, word, digit, dot, kwinit, kind, kwpos, ts, &mut self.lanes);

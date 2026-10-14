@@ -1,7 +1,5 @@
 //! Types representing platforms and CPU features.
 
-#![expect(unused)]
-
 /// Trait for getting the [`Platform`] for a specific CPU architecture.
 ///
 /// Implemented by [`Platform`] itself, and all types representing specific CPU feature sets.
