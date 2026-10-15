@@ -172,8 +172,9 @@ static STYLE_EXTENSIONS: phf::Set<&'static str> = phf_set! {
 };
 // spellchecker:on
 
+// JHPATCH: Shared with the side effect check of import merging (sortImports.mergeDuplicates)
 /// Check if an import source is a style file based on its extension.
-fn is_style(source: &str) -> bool {
+pub(super) fn is_style(source: &str) -> bool {
     Path::new(source)
         .extension()
         .and_then(|ext| ext.to_str())

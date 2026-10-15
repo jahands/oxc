@@ -604,6 +604,8 @@ pub struct SortImportsConfig {
     /// When `true`, imports are not sorted across a side effect import that keeps its position
     /// (see `sortSideEffects`), or across an import suppressed with `prettier-ignore` / `oxfmt-ignore`.
     /// Suppressed imports get the same blank lines as side effect imports.
+    /// An import with an empty `{}` and no comments (`import {} from 'a'`) is printed as the side effect import `import 'a'`,
+    /// as `@ianvs/prettier-plugin-sort-imports` does.
     ///
     /// If any group boundary inserts newlines (`newlinesBetween: true` or a `{ "newlinesBetween": true }` marker),
     /// a run of side effect imports also gets a blank line after it, and one before it.
@@ -690,6 +692,68 @@ pub struct SortImportsConfig {
     /// - Default: `false`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hoist: Option<bool>,
+    // JHPATCH: sortImports.mergeDuplicates option to match @ianvs/prettier-plugin-sort-imports
+    /// Merge imports of the same source into one declaration,
+    /// the way `@ianvs/prettier-plugin-sort-imports` does.
+    ///
+    /// Imports are merged within the imports that are sorted together
+    /// (every top-level import with `hoist`, otherwise each run of imports, split by the `partitionBy*` options).
+    /// The first import of a source takes in the later ones, with their specifiers after its own
+    /// and the comments above them below its own comments.
+    /// Value imports merge with value imports and type imports with type imports.
+    /// With `combineTypeAndValueImports` and without `splitTypeSpecifiers`,
+    /// type imports also merge with value imports as inline `type` specifiers.
+    ///
+    /// These are not merged: an import with a namespace specifier, two imports with a default specifier,
+    /// a type import with a default specifier, side effect imports, suppressed imports,
+    /// imports with different import attributes, and imports with comments outside `{ ... }`.
+    /// An import that cannot merge still keeps later imports of its source from merging into an earlier one.
+    ///
+    /// ```js
+    /// import React, { useState } from 'react'
+    /// ```
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub merge_duplicates: Option<bool>,
+    // JHPATCH: sortImports.splitTypeSpecifiers option to match @ianvs/prettier-plugin-sort-imports
+    /// Split the inline `type` specifiers of a value import into a type import,
+    /// the way `@ianvs/prettier-plugin-sort-imports` does.
+    ///
+    /// Applies to a value import with more than one specifier, some but not all of them inline `type` specifiers.
+    /// `import { type A } from 'a'` and `import { type A, type B } from 'a'` are left as written,
+    /// as are imports with import attributes.
+    /// Splitting runs after `mergeDuplicates`, so the new type import is not merged with other type imports
+    /// of its source until the file is formatted again.
+    ///
+    /// With `hoist`, the comments of a split import move below the imports, as they do with Prettier.
+    ///
+    /// ```js
+    /// import { b } from 'a'
+    /// import type { A } from 'a'
+    /// ```
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub split_type_specifiers: Option<bool>,
+    // JHPATCH: sortImports.combineTypeAndValueImports option to match @ianvs/prettier-plugin-sort-imports below TypeScript 4.5
+    /// Let `mergeDuplicates` merge type imports and value imports of the same source,
+    /// with the type import's named specifiers marked `type`.
+    ///
+    /// `@ianvs/prettier-plugin-sort-imports` turns this off when `importOrderTypeScriptVersion` is below 4.5.0.
+    /// Has no effect with `splitTypeSpecifiers`.
+    ///
+    /// ```js
+    /// // `true`
+    /// import { a, type A } from 'a'
+    /// // `false`
+    /// import { a } from 'a'
+    /// import type { A } from 'a'
+    /// ```
+    ///
+    /// - Default: `true`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub combine_type_and_value_imports: Option<bool>,
     /// Add newlines between groups.
     ///
     /// - Default: `true`
@@ -1300,6 +1364,14 @@ pub struct TomlConfig {
     /// - Default: `false`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reorder_keys: Option<bool>,
+    // JHPATCH: toml.trimLeadingBlankLines, which prettier-plugin-toml always does
+    /// Remove the blank lines at the start of the file.
+    ///
+    /// `prettier-plugin-toml` has no such option and always removes them.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trim_leading_blank_lines: Option<bool>,
 }
 
 // ---

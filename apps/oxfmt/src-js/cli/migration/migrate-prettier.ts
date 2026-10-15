@@ -5,6 +5,12 @@ import { readdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { hasOxfmtrcFile, createBlankOxfmtrcFile, saveOxfmtrcFile, exitWithError } from "./shared";
+import {
+  IANVS_OPTIONS,
+  IANVS_PLUGIN,
+  migrateIanvsOverrides,
+  migrateIanvsSortImports,
+} from "./prettier-sort-imports";
 import type { Language } from "../../config.generated";
 
 /**
@@ -53,7 +59,8 @@ export async function runMigratePrettier() {
     }
   }
 
-  Object.assign(oxfmtrc, migrateOptions(options, true));
+  // JHPATCH: Pass the plugins, so that migrateOptions() skips @ianvs/prettier-plugin-sort-imports options
+  Object.assign(oxfmtrc, migrateOptions(options, enabledPlugins, true));
 
   // `printWidth` has different default between Prettier and Oxfmt.
   // Oxfmt default is 100, Prettier default is 80.
@@ -66,17 +73,53 @@ export async function runMigratePrettier() {
   // `sortPackageJson` is enabled by default in Oxfmt, but Prettier does not have this.
   // Only enable if `prettier-plugin-packagejson` is used.
   if (enabledPlugins.has("prettier-plugin-packagejson")) {
-    oxfmtrc.sortPackageJson = {};
+    // JHPATCH: Migrate prettier-plugin-packagejson to sortPackageJson.preset, which sorts like it
+    oxfmtrc.sortPackageJson = { preset: "sort-package-json" };
     console.log(`  - Migrated "prettier-plugin-packagejson" to "sortPackageJson"`);
   } else {
     oxfmtrc.sortPackageJson = false;
   }
+  // JHPATCH: Migrate @ianvs/prettier-plugin-sort-imports options to sortImports
+  if (enabledPlugins.has(IANVS_PLUGIN)) {
+    const sortImports = migrateIanvsSortImports(pickIanvsOptions(options), warnings, "");
+    if (sortImports) {
+      oxfmtrc.sortImports = sortImports;
+      console.log(`  - Migrated "${IANVS_PLUGIN}" options to "sortImports"`);
+    }
+  }
   Object.assign(oxfmtrc, migratePluginOptions(options, enabledPlugins, true));
+  // JHPATCH: Apply prettier-plugin-toml defaults that differ from Oxfmt's
+  if (oxfmtrc.toml) {
+    oxfmtrc.toml = { ...TOML_PLUGIN_DEFAULTS, ...oxfmtrc.toml };
+  }
+  // JHPATCH: Use the project's prettier-plugin-astro, whose version Prettier used
+  if (oxfmtrc.astro && resolveFromCwd(cwd, "prettier-plugin-astro")) {
+    oxfmtrc.astro = { ...oxfmtrc.astro, useProjectPlugin: true };
+    console.log(
+      `  - Enabled "astro.useProjectPlugin" to format with the installed "prettier-plugin-astro"`,
+    );
+  }
+  // JHPATCH: Follow Prettier 3.9's output when the project uses Prettier 3.9 or later
+  if (isPrettier39OrLater(cwd)) {
+    oxfmtrc.prettierCompat = "3.9";
+    console.log(`  - Set "prettierCompat" to "3.9" for the installed Prettier`);
+  }
+  // JHPATCH: Print multi-line code spans in Markdown lists and blockquotes as Prettier does
+  oxfmtrc.markdown = { lazyCodeSpanContinuation: true };
 
   if (Array.isArray(overrides)) {
+    // JHPATCH: Migrate @ianvs/prettier-plugin-sort-imports options in overrides to sortImports
+    const ianvsOverrides = enabledPlugins.has(IANVS_PLUGIN)
+      ? migrateIanvsOverrides(
+          pickIanvsOptions(options),
+          overrides.map(({ options = {} }) => pickIanvsOptions(options)),
+          warnings,
+        )
+      : [];
     const oxfmtOverrides = [];
     const associations = [];
-    for (const { files, excludeFiles, options = {} } of overrides) {
+    // JHPATCH: Iterate with the index, to look up `ianvsOverrides`
+    for (const [index, { files, excludeFiles, options = {} }] of overrides.entries()) {
       const globs = {
         files: [files].flat(),
         ...(excludeFiles !== undefined && { excludeFiles: [excludeFiles].flat() }),
@@ -89,10 +132,14 @@ export async function runMigratePrettier() {
       } else if (parser !== undefined) {
         warnings.push(`overrides: "parser": "${parser}" is not supported, skipping...`);
       }
-      const migrated = {
-        ...migrateOptions(rest, false),
+      // JHPATCH: Pass the plugins to migrateOptions(), add the migrated sortImports
+      const migrated: Record<string, unknown> = {
+        ...migrateOptions(rest, enabledPlugins, false),
         ...migratePluginOptions(rest, enabledPlugins, false),
       };
+      if (ianvsOverrides[index] !== undefined) {
+        migrated.sortImports = ianvsOverrides[index];
+      }
       if (Object.keys(migrated).length === 0) continue;
       oxfmtOverrides.push({ ...globs, options: migrated });
     }
@@ -269,6 +316,8 @@ const COMPATIBLE_OPTIONS = new Set([
 // Migrate top-level or `overrides[].options` Prettier options, except plugin-specific ones.
 function migrateOptions(
   options: Record<string, unknown>,
+  // JHPATCH: The enabled plugins, whose options are migrated elsewhere
+  enabledPlugins: Set<string>,
   isTopLevel: boolean,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
@@ -277,6 +326,8 @@ function migrateOptions(
   for (const [key, value] of Object.entries(options)) {
     // Plugin-specific options - handled by `migratePluginOptions()`
     if (PLUGIN_OPTIONS.has(key)) continue;
+    // JHPATCH: @ianvs/prettier-plugin-sort-imports options are handled by `migrateIanvsSortImports()`
+    if (IANVS_OPTIONS.has(key) && enabledPlugins.has(IANVS_PLUGIN)) continue;
     if (!COMPATIBLE_OPTIONS.has(key)) {
       warnings.push(`${prefix}"${key}" is not supported, skipping...`);
       continue;
@@ -371,14 +422,43 @@ const ASTRO_OPTION_MAPPING: Record<string, string> = {
   compressHTML: "astroCompressHTML",
 };
 
+// JHPATCH: prettier-plugin-toml options, which have the same names in Oxfmt's `toml`
+const TOML_OPTION_MAPPING: Record<string, string> = Object.fromEntries(
+  [
+    "alignEntries",
+    "alignComments",
+    "allowedBlankLines",
+    "arrayAutoExpand",
+    "arrayAutoCollapse",
+    "compactArrays",
+    "compactInlineTables",
+    "compactEntries",
+    "indentTables",
+    "indentEntries",
+    "reorderKeys",
+  ].map((key) => [key, key]),
+);
+
+// JHPATCH: prettier-plugin-toml defaults that differ from Oxfmt's; Taplo always aligns single comments, the plugin trims the input
+const TOML_PLUGIN_DEFAULTS = {
+  alignComments: true,
+  alignSingleComments: true,
+  allowedBlankLines: 1,
+  trimLeadingBlankLines: true,
+};
+
 const NAMESPACED_PLUGINS = [
   ["prettier-plugin-tailwindcss", "sortTailwindcss", TAILWIND_OPTION_MAPPING, filterTailwindRegex],
   ["prettier-plugin-svelte", "svelte", SVELTE_OPTION_MAPPING, undefined],
   ["prettier-plugin-astro", "astro", ASTRO_OPTION_MAPPING, normalizeAstroCompressHTML],
+  // JHPATCH: Migrate prettier-plugin-toml options to toml
+  ["prettier-plugin-toml", "toml", TOML_OPTION_MAPPING, undefined],
 ] as const;
 
 const KNOWN_PLUGINS = new Set<unknown>([
   "prettier-plugin-packagejson",
+  // JHPATCH: @ianvs/prettier-plugin-sort-imports is migrated to sortImports
+  IANVS_PLUGIN,
   ...NAMESPACED_PLUGINS.map(([plugin]) => plugin),
 ]);
 
@@ -424,4 +504,30 @@ function filterTailwindRegex(prettierKey: string, value: unknown): unknown {
 function normalizeAstroCompressHTML(prettierKey: string, value: unknown): unknown {
   if (prettierKey !== "astroCompressHTML" || typeof value !== "boolean") return value;
   return value ? "html" : "none";
+}
+
+// JHPATCH: Helpers for the @ianvs/prettier-plugin-sort-imports, prettier-plugin-astro and Prettier version migration
+function pickIanvsOptions(options: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(options).filter(([key]) => IANVS_OPTIONS.has(key)));
+}
+
+// Node.js resolution from `cwd`, as `astro.useProjectPlugin` resolves the plugin.
+function resolveFromCwd(cwd: string, request: string): string | null {
+  try {
+    return createRequire(join(cwd, "noop.js")).resolve(request);
+  } catch {
+    return null;
+  }
+}
+
+function isPrettier39OrLater(cwd: string): boolean {
+  const path = resolveFromCwd(cwd, "prettier/package.json");
+  if (!path) return false;
+  try {
+    const { version } = createRequire(path)(path) as { version?: unknown };
+    const [major, minor] = String(version).split(".").map(Number);
+    return major > 3 || (major === 3 && minor >= 9);
+  } catch {
+    return false;
+  }
 }

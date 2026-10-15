@@ -80,6 +80,9 @@ struct TestSortImportsConfig {
     collation: Option<String>,
     sort_specifiers: Option<bool>,
     hoist: Option<bool>,
+    merge_duplicates: Option<bool>,
+    split_type_specifiers: Option<bool>,
+    combine_type_and_value_imports: Option<bool>,
     newlines_between: Option<bool>,
     internal_pattern: Option<Vec<String>>,
     #[serde(default, deserialize_with = "deserialize_groups")]
@@ -173,6 +176,15 @@ fn parse_test_config(json: &str) -> JsFormatOptions {
         }
         if let Some(v) = sort_config.hoist {
             sort_imports.hoist = v;
+        }
+        if let Some(v) = sort_config.merge_duplicates {
+            sort_imports.merge_duplicates = v;
+        }
+        if let Some(v) = sort_config.split_type_specifiers {
+            sort_imports.split_type_specifiers = v;
+        }
+        if let Some(v) = sort_config.combine_type_and_value_imports {
+            sort_imports.combine_type_and_value_imports = v;
         }
         if let Some(v) = sort_config.newlines_between {
             sort_imports.newlines_between = v;

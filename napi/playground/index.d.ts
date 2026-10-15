@@ -112,6 +112,8 @@ export interface OxcFormatterOptions {
   experimentalOperatorPosition?: string
   /** Sort imports configuration (default: None) */
   sortImports?: OxcSortImportsOptions
+  /** Follow a newer Prettier version's output where the formatter keeps an earlier Prettier style: "3.9" (default: None) */
+  prettierCompat?: string
 }
 
 export interface OxcInjectOptions {
@@ -192,12 +194,26 @@ export interface OxcSortImportsOptions {
   partitionByNewline?: boolean
   /** Partition imports by comments (default: false) */
   partitionByComment?: boolean
+  /** Partition imports by side effect imports that keep their position (default: false) */
+  partitionBySideEffect?: boolean
   /** Sort side effects imports (default: false) */
   sortSideEffects?: boolean
   /** Sort order: "asc" | "desc" (default: "asc") */
   order?: string
   /** Ignore case when sorting (default: true) */
   ignoreCase?: boolean
+  /** How sources and names are compared: "natural" | "intl" (default: "natural") */
+  collation?: string
+  /** Sort named specifiers inside `{ ... }` (default: false) */
+  sortSpecifiers?: boolean
+  /** Move every top-level import into one block at the top of the file (default: false) */
+  hoist?: boolean
+  /** Merge imports of the same source (default: false) */
+  mergeDuplicates?: boolean
+  /** Split inline `type` specifiers of a value import into a type import (default: false) */
+  splitTypeSpecifiers?: boolean
+  /** Let `mergeDuplicates` merge type imports and value imports (default: true) */
+  combineTypeAndValueImports?: boolean
   /** Add newlines between import groups (default: true) */
   newlinesBetween?: boolean
   /** Pattern prefixes for internal imports */

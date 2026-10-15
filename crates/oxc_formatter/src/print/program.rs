@@ -148,6 +148,8 @@ fn format_import_decls_with_sort<'a, 'iter>(
 
     // Output first `ImportDeclaration`
     join.entry_no_separator(stmt);
+    // JHPATCH: Start offsets of the imports in the run, to look up rewritten imports (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+    let mut import_starts = vec![stmt.span().start];
 
     // The first import was already written above, so start the count at 1.
     // JHPATCH: Keep suppressed imports in the run (sortImports.partitionBySideEffect)
@@ -163,6 +165,8 @@ fn format_import_decls_with_sort<'a, 'iter>(
                 break;
             }
             join.entry(decl.span, stmt);
+            // JHPATCH: Start offsets of the imports in the run, to look up rewritten imports (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+            import_starts.push(decl.span.start);
             count += 1;
         } else {
             next_stmt = Some(stmt);
@@ -171,9 +175,17 @@ fn format_import_decls_with_sort<'a, 'iter>(
     }
 
     // A single-import run is already in order, so skip the transform.
-    if count >= 2 {
-        // JHPATCH: Chunk position for the hoist comment rules (sortImports.hoist)
-        sort_imports_chunk(join.fmt_mut(), chunk_start, position);
+    // JHPATCH: Run the transform for an import that goes on the line of the comment above it (sortImports.mergeDuplicates)
+    if count >= 2
+        || join
+            .fmt()
+            .context()
+            .import_rewrite_info()
+            .joins_comment_when_first
+            .contains(&import_starts[0])
+    {
+        // JHPATCH: Chunk position for the hoist comment rules, import offsets to look up rewritten imports (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+        sort_imports_chunk(join.fmt_mut(), chunk_start, position, &import_starts);
     }
 
     next_stmt

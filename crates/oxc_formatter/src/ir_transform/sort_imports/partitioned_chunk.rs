@@ -100,7 +100,22 @@ impl<'a> PartitionedChunk<'a> {
                         .push(orphan_pending.iter().any(|l| matches!(l, SourceLine::Empty)));
                     // JHPATCH: Keep the comments before the first import at the top (sortImports.hoist)
                     if keep_leading_comments_at_top && sortable_imports.is_empty() {
+                        // JHPATCH: Comments that move with the first import (sortImports.mergeDuplicates)
+                        // The comments that hoist_imports moved above the first import move with it.
+                        let mut seen = 0;
+                        let split_at = (metadata.moving_comments > 0)
+                            .then(|| {
+                                current_pending.iter().rposition(|line| {
+                                    let is_comment = matches!(line, SourceLine::CommentOnly(..));
+                                    seen += usize::from(is_comment);
+                                    is_comment && seen == metadata.moving_comments
+                                })
+                            })
+                            .flatten()
+                            .unwrap_or(current_pending.len());
+                        let mut moved = current_pending.split_off(split_at);
                         orphan_pending.append(&mut current_pending);
+                        current_pending.append(&mut moved);
                     }
 
                     // Handle orphan content (separated by empty line from this import)
@@ -136,8 +151,13 @@ impl<'a> PartitionedChunk<'a> {
                     let is_side_effect = metadata.is_side_effect;
                     // JHPATCH: Trailing comment info for hoist and side effect blank lines
                     let has_trailing_comment = metadata.has_trailing_comment;
-                    let follows_trailing_comment =
-                        sortable_imports.last().is_some_and(|prev| prev.has_trailing_comment);
+                    // JHPATCH: The trailing comment of an import that is not the previous statement does not count (sortImports.hoist)
+                    let follows_trailing_comment = !metadata.is_detached
+                        && sortable_imports.last().is_some_and(|prev| prev.has_trailing_comment);
+                    // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+                    let moving_comments = metadata.moving_comments;
+                    let is_split = metadata.is_split;
+                    let joins_comment_when_first = metadata.joins_comment_when_first;
                     let (group_idx, normalized_source, is_ignored) =
                         compute_import_metadata(metadata, group_matcher, options);
 
@@ -148,6 +168,10 @@ impl<'a> PartitionedChunk<'a> {
                         line_idx,
                         has_trailing_comment,
                         follows_trailing_comment,
+                        // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+                        moving_comments,
+                        is_split,
+                        joins_comment_when_first,
                         is_side_effect,
                         group_idx,
                         normalized_source,

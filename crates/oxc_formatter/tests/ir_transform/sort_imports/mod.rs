@@ -4,6 +4,7 @@ mod collation;
 mod custom_groups;
 mod groups;
 mod hoist;
+mod merge_duplicates;
 mod newlines_between_override;
 mod partition_by_side_effect;
 mod sort_specifiers;

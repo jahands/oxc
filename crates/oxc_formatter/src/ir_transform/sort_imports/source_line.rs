@@ -76,6 +76,11 @@ impl<'a> SourceLine<'a> {
                             source: "",
                             is_suppressed: true,
                             has_trailing_comment: has_comment_after_import(elements, range),
+                            // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+                            moving_comments: 0,
+                            is_split: false,
+                            is_detached: false,
+                            joins_comment_when_first: false,
                             is_side_effect: false,
                             is_type_import: false,
                             has_default_specifier: false,
@@ -159,6 +164,11 @@ impl<'a> SourceLine<'a> {
                 source: source.expect("`ImportDeclaration` must have a source"),
                 is_suppressed: false,
                 has_trailing_comment: has_comment_after_import(elements, range),
+                // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+                moving_comments: 0,
+                is_split: false,
+                is_detached: false,
+                joins_comment_when_first: false,
                 is_side_effect,
                 is_type_import,
                 has_default_specifier,
@@ -210,6 +220,16 @@ pub struct ImportLineMetadata<'a> {
     pub is_suppressed: bool,
     /// Whether a comment follows the import on its line.
     pub has_trailing_comment: bool,
+    // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+    /// Number of comments on lines of their own directly above the import that move with it
+    /// when it is the first import ([`super::ImportRewriteInfo::moving_comments`]).
+    pub moving_comments: usize,
+    /// Whether this import was split from a value import with inline `type` specifiers.
+    pub is_split: bool,
+    /// Whether the previous statement in the source is not the import before it.
+    pub is_detached: bool,
+    /// See [`super::ImportRewriteInfo::joins_comment_when_first`].
+    pub joins_comment_when_first: bool,
     /// Whether this is a side-effect-only import (e.g., `import "foo"`).
     pub is_side_effect: bool,
     /// Whether this is a type-only import (e.g., `import type { Foo } from "foo"`).

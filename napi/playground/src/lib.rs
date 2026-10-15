@@ -31,8 +31,8 @@ use oxc::{
 use oxc_formatter::{
     ArrowParentheses, AttributePosition, BracketSameLine, BracketSpacing, CustomGroupDefinition,
     Expand, GroupEntry, ImportModifier, ImportSelector, JsFormatOptions, OperatorPosition,
-    QuoteProperties, QuoteStyle, Semicolons, SortCollation, SortImportsOptions, SortOrder,
-    TrailingCommas, default_groups, default_internal_patterns,
+    PrettierCompat, QuoteProperties, QuoteStyle, Semicolons, SortCollation, SortImportsOptions,
+    SortOrder, TrailingCommas, default_groups, default_internal_patterns,
 };
 use oxc_formatter_core::{IndentStyle, IndentWidth, LineEnding, LineWidth};
 use oxc_linter::{
@@ -544,11 +544,25 @@ impl Oxc {
             format_options.operator_position = position;
         }
 
+        // JHPATCH: Map prettierCompat
+        if let Some(ref prettier_compat) = options.prettier_compat
+            && let Ok(compat) = prettier_compat.parse::<PrettierCompat>()
+        {
+            format_options.prettier_compat = Some(compat);
+        }
+
         if let Some(ref sort_imports_config) = options.sort_imports {
             let order = sort_imports_config
                 .order
                 .as_ref()
                 .and_then(|o| o.parse::<SortOrder>().ok())
+                .unwrap_or_default();
+
+            // JHPATCH: Parse sortImports.collation
+            let collation = sort_imports_config
+                .collation
+                .as_ref()
+                .and_then(|c| c.parse::<SortCollation>().ok())
                 .unwrap_or_default();
 
             let custom_groups = sort_imports_config
@@ -618,14 +632,23 @@ impl Oxc {
                 partition_by_newline: sort_imports_config.partition_by_newline.unwrap_or(false),
                 partition_by_comment: sort_imports_config.partition_by_comment.unwrap_or(false),
                 // JHPATCH: New sortImports option (partitionBySideEffect)
-                partition_by_side_effect: false,
+                partition_by_side_effect: sort_imports_config
+                    .partition_by_side_effect
+                    .unwrap_or(false),
                 sort_side_effects: sort_imports_config.sort_side_effects.unwrap_or(false),
                 order,
                 ignore_case: sort_imports_config.ignore_case.unwrap_or(true),
                 // JHPATCH: New sortImports options (collation, sortSpecifiers, hoist)
-                collation: SortCollation::Natural,
-                sort_specifiers: false,
-                hoist: false,
+                collation,
+                sort_specifiers: sort_imports_config.sort_specifiers.unwrap_or(false),
+                hoist: sort_imports_config.hoist.unwrap_or(false),
+                // JHPATCH: New sortImports options (mergeDuplicates, splitTypeSpecifiers)
+                merge_duplicates: sort_imports_config.merge_duplicates.unwrap_or(false),
+                split_type_specifiers: sort_imports_config.split_type_specifiers.unwrap_or(false),
+                // JHPATCH: New sortImports option (combineTypeAndValueImports)
+                combine_type_and_value_imports: sort_imports_config
+                    .combine_type_and_value_imports
+                    .unwrap_or(true),
                 newlines_between: sort_imports_config.newlines_between.unwrap_or(true),
                 internal_pattern: sort_imports_config
                     .internal_pattern

@@ -118,6 +118,50 @@ import { b, c } from "c";
   });
 });
 
+describe("Sort imports with mergeDuplicates and splitTypeSpecifiers", () => {
+  const input = `import { useState } from "react";
+import { z } from "zod";
+import React, { type FC } from "react";
+import type { ReactNode } from "react";
+`;
+
+  it("should merge imports of the same source", async () => {
+    const result = await format("a.ts", input, {
+      sortImports: { mergeDuplicates: true, sortSpecifiers: true },
+    });
+
+    expect(result.code).toBe(
+      `
+import React, { useState, type FC, type ReactNode } from "react";
+import { z } from "zod";
+`.trimStart(),
+    );
+    expect(result.errors).toStrictEqual([]);
+  });
+
+  it("should split inline type specifiers into type imports", async () => {
+    const result = await format("a.ts", input, {
+      sortImports: {
+        mergeDuplicates: true,
+        splitTypeSpecifiers: true,
+        sortSpecifiers: true,
+        groups: ["value-import", "type-import"],
+      },
+    });
+
+    expect(result.code).toBe(
+      `
+import React, { useState } from "react";
+import { z } from "zod";
+
+import type { FC } from "react";
+import type { ReactNode } from "react";
+`.trimStart(),
+    );
+    expect(result.errors).toStrictEqual([]);
+  });
+});
+
 describe("Sort imports in MDX", () => {
   const input = `import { z } from "zod";
 import { a } from "a";
