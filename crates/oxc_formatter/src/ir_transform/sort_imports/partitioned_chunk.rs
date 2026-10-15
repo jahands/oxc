@@ -1,6 +1,7 @@
 use oxc_formatter_core::format_element::LineMode;
 
 use crate::ir_transform::sort_imports::{
+    ImportLines,
     compute_metadata::compute_import_metadata,
     group_matcher::GroupMatcher,
     options::SortImportsOptions,
@@ -72,6 +73,8 @@ impl<'a> PartitionedChunk<'a> {
         options: &SortImportsOptions,
         // JHPATCH: Keep the comments before the first import at the top (sortImports.hoist)
         keep_leading_comments_at_top: bool,
+        // JHPATCH: Source lines of the imports for the hoist blank line rules (sortImports.hoist)
+        import_lines: &[ImportLines],
     ) -> (Vec<SortableImport<'a>>, Vec<OrphanContent<'a>>, Vec<SourceLine<'a>>, Vec<bool>) {
         let Self::Imports(lines) = self else {
             unreachable!(
@@ -133,11 +136,22 @@ impl<'a> PartitionedChunk<'a> {
                         }
                     }
 
+                    // JHPATCH: Source lines of the imports for the hoist blank line rules (sortImports.hoist)
+                    // Without source lines, the line index in the chunk stands in.
+                    #[expect(clippy::cast_possible_truncation)]
+                    let lines =
+                        import_lines.get(sortable_imports.len()).copied().unwrap_or(ImportLines {
+                            line: line_idx as u32,
+                            comment_height: 0,
+                            follows_import: true,
+                            has_trailing_comment: metadata.has_trailing_comment,
+                        });
                     let is_side_effect = metadata.is_side_effect;
                     // JHPATCH: Trailing comment info for hoist and side effect blank lines
-                    let has_trailing_comment = metadata.has_trailing_comment;
-                    let follows_trailing_comment =
-                        sortable_imports.last().is_some_and(|prev| prev.has_trailing_comment);
+                    let has_leading_comment = metadata.has_leading_comment;
+                    let has_trailing_comment = lines.has_trailing_comment;
+                    let follows_trailing_comment = lines.follows_import
+                        && sortable_imports.last().is_some_and(|prev| prev.has_trailing_comment);
                     let (group_idx, normalized_source, is_ignored) =
                         compute_import_metadata(metadata, group_matcher, options);
 
@@ -145,7 +159,9 @@ impl<'a> PartitionedChunk<'a> {
                         leading_lines: std::mem::take(&mut current_pending),
                         import_line: line,
                         // JHPATCH: Line and trailing comment info for hoist and side effect blank lines
-                        line_idx,
+                        line: lines.line,
+                        comment_height: lines.comment_height,
+                        has_leading_comment,
                         has_trailing_comment,
                         follows_trailing_comment,
                         is_side_effect,

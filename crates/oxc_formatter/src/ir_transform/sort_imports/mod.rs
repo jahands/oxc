@@ -17,7 +17,7 @@ use oxc_formatter_core::format_element::{
 };
 
 // JHPATCH: Import hoisting entry point (sortImports.hoist)
-pub use hoist::hoist_imports;
+pub use hoist::{HoistFacts, HoistedImportFacts, hoist_imports};
 
 use crate::{
     JsLabels, SortImportsOptions,
@@ -45,16 +45,16 @@ use crate::{
 ///
 /// # Panics
 /// Panics if `sort_imports` option is not enabled.
-// JHPATCH: Pass the chunk position for the hoist comment rules (sortImports.hoist)
+// JHPATCH: Pass where the chunk sits in the source for the hoist comment rules (sortImports.hoist)
 pub fn sort_imports_chunk(
     formatter: &mut JsFormatter<'_, '_>,
     chunk_start: usize,
-    position: ChunkPosition,
+    source: &ChunkSource,
 ) {
     let elements = &formatter.elements()[chunk_start..];
     let options = formatter.options().sort_imports.as_ref().unwrap();
 
-    let sorted_elements = transform(elements, options, formatter.allocator(), position);
+    let sorted_elements = transform(elements, options, formatter.allocator(), source);
     formatter.replace_end(chunk_start, &sorted_elements);
 }
 
@@ -68,6 +68,32 @@ pub enum ChunkPosition {
     AfterPrologue,
     /// The chunk starts the program body, and nothing precedes it but comments.
     FileStart,
+}
+
+// JHPATCH: Where a chunk sits in the source, for the hoist comment rules (sortImports.hoist)
+/// Where a chunk of `ImportDeclaration`s sits in the source, for the comment and blank line rules of `hoist`.
+#[derive(Debug)]
+pub struct ChunkSource {
+    pub position: ChunkPosition,
+    /// The source lines of each import of the chunk, in source order. Empty without `hoist`.
+    pub imports: Vec<ImportLines>,
+    /// Whether the first import had "top of file" comments before `hoist` moved it,
+    /// when `hoist` rewrote the source. See [`HoistFacts::has_top_of_file_comments`].
+    pub has_top_of_file_comments: Option<bool>,
+}
+
+// JHPATCH: Source lines of the imports for the hoist blank line rules (sortImports.hoist)
+/// Where an import of a chunk starts in the source, for the blank line rules of `hoist`.
+#[derive(Clone, Copy, Debug)]
+pub struct ImportLines {
+    /// Line of the import declaration.
+    pub line: u32,
+    /// Lines from the start of the comments that the import owns to the import declaration.
+    pub comment_height: u32,
+    /// Whether the previous statement in the source before `hoist` was an import.
+    pub follows_import: bool,
+    /// Whether a comment starts after the import declaration on the line where it starts.
+    pub has_trailing_comment: bool,
 }
 
 /// An IR transform that sorts import statements according to specified options.
@@ -87,9 +113,10 @@ fn transform<'a>(
     elements: &[FormatElement<'a>],
     options: &SortImportsOptions,
     allocator: &'a Allocator,
-    // JHPATCH: Chunk position for the hoist comment rules (sortImports.hoist)
-    position: ChunkPosition,
+    // JHPATCH: Where the chunk sits in the source, for the hoist comment rules (sortImports.hoist)
+    source: &ChunkSource,
 ) -> ArenaVec<'a, FormatElement<'a>> {
+    let position = source.position;
     // Parse string based groups into our internal representation for performance
     let group_matcher = GroupMatcher::new(&options.groups, &options.custom_groups);
     let prev_elements: &[FormatElement<'a>] = elements;
@@ -181,7 +208,16 @@ fn transform<'a>(
                 }
                 Tag::EndLineSuffix => {
                     inside_line_suffix = false;
-                    if std::mem::take(&mut inside_own_line_suffix) {
+                    // JHPATCH: Keep comments that follow an own-line trailing comment on its line (sortImports.hoist)
+                    let continues_line = matches!(
+                        prev_elements.get(idx + 1),
+                        Some(FormatElement::Tag(Tag::StartLineSuffix))
+                    ) && !matches!(
+                        prev_elements.get(idx + 2),
+                        Some(FormatElement::Line(LineMode::Hard | LineMode::Empty))
+                    );
+                    if inside_own_line_suffix && !continues_line {
+                        inside_own_line_suffix = false;
                         lines.push(SourceLine::from_element_range(
                             prev_elements,
                             current_line_start..idx + 1,
@@ -319,6 +355,8 @@ fn transform<'a>(
     // JHPATCH: Keep leading comments at the top of the file (sortImports.hoist)
     // With `hoist`, comments before the first import of the file stay at the top.
     let mut keep_leading_comments_at_top = options.hoist && position != ChunkPosition::Inner;
+    // JHPATCH: Source lines of the imports for the hoist blank line rules (sortImports.hoist)
+    let mut imports_seen = 0;
     let mut chunks_iter = chunks.into_iter().peekable();
     while let Some(chunk) = chunks_iter.next() {
         match chunk {
@@ -355,7 +393,10 @@ fn transform<'a>(
                         &group_matcher,
                         options,
                         std::mem::take(&mut keep_leading_comments_at_top),
+                        source.imports.get(imports_seen..).unwrap_or_default(),
                     );
+                // JHPATCH: Source lines of the imports for the hoist blank line rules (sortImports.hoist)
+                imports_seen += sorted_imports.len();
 
                 // Output leading orphan content (after_slot: None)
                 // JHPATCH: Track comments kept at the top (sortImports.hoist)
@@ -370,6 +411,7 @@ fn transform<'a>(
                         leading_orphan_ends_with_comment =
                             matches!(orphan.lines.last(), Some(SourceLine::CommentOnly(..)));
                         has_top_comments = options.hoist
+                            && source.has_top_of_file_comments.unwrap_or(true)
                             && orphan
                                 .lines
                                 .iter()
@@ -382,15 +424,15 @@ fn transform<'a>(
                 if has_top_comments
                     && position == ChunkPosition::FileStart
                     && leading_orphan_ends_with_comment
-                    && sorted_imports.first().is_some_and(|first| !first.leading_lines.is_empty())
+                    && sorted_imports.first().is_some_and(|first| first.comment_height > 0)
                 {
                     next_elements.push(FormatElement::Line(LineMode::Empty));
                 }
                 // Below comments kept at the top, the first import counts as starting
                 // on the line of the first import in the source, after its own leading lines.
-                let first_source_line_idx =
-                    sorted_imports.iter().map(|import| import.line_idx).min().unwrap_or_default();
-                let mut prev_line_idx = 0;
+                let first_source_line =
+                    sorted_imports.iter().map(|import| import.line).min().unwrap_or_default();
+                let mut prev_line = 0;
 
                 // Output sorted import units with orphan content at their slot positions
                 // JHPATCH: Track the previous import for side effect and hoist blank lines
@@ -431,17 +473,27 @@ fn transform<'a>(
                     let insert_newline = insert_newline
                         || (options.hoist
                             && prev_import.is_some_and(|prev| {
-                                sorted_import.line_idx > prev_line_idx + 1
-                                    && prev.has_trailing_comment
+                                sorted_import.line > prev_line + 1 && prev.has_trailing_comment
                             }));
-                    prev_line_idx = if slot_idx == 0 && has_top_comments {
-                        first_source_line_idx + sorted_import.leading_lines.len()
+                    prev_line = if slot_idx == 0 && has_top_comments {
+                        first_source_line + sorted_import.comment_height
                     } else {
-                        sorted_import.line_idx
+                        sorted_import.line
                     };
                     if insert_newline {
                         next_elements.push(FormatElement::Line(LineMode::Empty));
                     }
+                    // JHPATCH: Line break between an import and the comments before it on its line (sortImports.hoist)
+                    // With `hoist`, an import goes on its own line when its first leading comment is
+                    // a line comment or spans lines, unless nothing is written before the import.
+                    let breaks_before_import = options.hoist
+                        && sorted_import.has_leading_comment
+                        && !(position == ChunkPosition::FileStart && next_elements.is_empty())
+                        && sorted_import
+                            .leading_lines
+                            .first()
+                            .unwrap_or(&sorted_import.import_line)
+                            .first_comment_ends_line(prev_elements);
                     // JHPATCH: Track the previous import for side effect and hoist blank lines
                     prev_import = Some(sorted_import);
                     if !sorted_import.is_ignored {
@@ -457,7 +509,14 @@ fn transform<'a>(
                             options.partition_by_newline || options.hoist,
                         );
                     }
-                    sorted_import.import_line.write(prev_elements, &mut next_elements, false);
+                    // JHPATCH: Line break between an import and the comments before it on its line (sortImports.hoist)
+                    if breaks_before_import {
+                        sorted_import
+                            .import_line
+                            .write_import_on_own_line(prev_elements, &mut next_elements);
+                    } else {
+                        sorted_import.import_line.write(prev_elements, &mut next_elements, false);
+                    }
 
                     // Output orphan content that belongs after this slot
                     for orphan in &orphan_contents {
@@ -577,17 +636,20 @@ fn should_insert_newline_around_side_effect(
         (true, true) => false,
         (true, false) => true,
         (false, _) => {
-            (current.leading_lines.is_empty() && !current.follows_trailing_comment) || {
-                let boundary_count = options.groups.len().saturating_sub(1);
-                (prev.group_idx..boundary_count).any(|idx| {
-                    options
-                        .newline_boundary_overrides
-                        .get(idx)
-                        .copied()
-                        .flatten()
-                        .unwrap_or(options.newlines_between)
-                })
-            }
+            (current.leading_lines.is_empty()
+                && !current.has_leading_comment
+                && !current.follows_trailing_comment)
+                || {
+                    let boundary_count = options.groups.len().saturating_sub(1);
+                    (prev.group_idx..boundary_count).any(|idx| {
+                        options
+                            .newline_boundary_overrides
+                            .get(idx)
+                            .copied()
+                            .flatten()
+                            .unwrap_or(options.newlines_between)
+                    })
+                }
         }
     }
 }

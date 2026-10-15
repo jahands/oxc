@@ -4,9 +4,9 @@ use std::ops::Range;
 use oxc_allocator::Allocator;
 use oxc_ast::{
     Comment,
-    ast::{Program, Statement},
+    ast::{ImportDeclaration, ImportDeclarationSpecifier, ModuleExportName, Program, Statement},
 };
-use oxc_span::GetSpan;
+use oxc_span::{GetSpan, Span};
 use oxc_syntax::line_terminator::is_line_terminator;
 
 use super::SortImportsOptions;
@@ -17,10 +17,13 @@ use super::SortImportsOptions;
 ///
 /// The rewritten text holds, in order:
 /// - the hashbang, then the comments that directly follow it
-/// - the directives with the comments before them, a blank line, then the comments that directly follow them
+/// - the directives with the comments before them, one per line, with a blank line before
+///   the comments between two directives, then a blank line and the comments that directly follow them
 /// - the comments before the first import that end on an earlier line than it ("top of file" comments)
 /// - every top-level import with the comments it owns, in source order,
-///   with a blank line between imports that were not adjacent statements
+///   with a blank line between imports that were not adjacent statements;
+///   a `prettier-ignore`d import, `import {} from`, and an import with comments after its `with` clause
+///   are written as Babel prints them ([`babel_import_text`])
 /// - a blank line, then the rest of the source with all of the above removed
 ///
 /// An import owns the comments between the previous statement and itself,
@@ -31,12 +34,13 @@ use super::SortImportsOptions;
 /// from a first side effect import that has no comments before it.
 ///
 /// Returns `None` when the source already has this layout.
+/// Otherwise also returns the [`HoistFacts`] that the import sorting needs about the source.
 #[expect(clippy::cast_possible_truncation)] // Offsets fit in `u32`, source length does
 pub fn hoist_imports<'a>(
     program: &Program<'a>,
     options: &SortImportsOptions,
     allocator: &'a Allocator,
-) -> Option<&'a str> {
+) -> Option<HoistedSource<'a>> {
     let source = program.source_text;
     let body = &program.body;
     let first_import_idx =
@@ -81,8 +85,15 @@ pub fn hoist_imports<'a>(
     }
     removed.extend(directive_comments.iter().map(|comment| comment.span.start..comment.span.end));
 
-    // Ranges of each import with the comments it owns, and the body index of the import.
-    let mut imports: Vec<(usize, Range<u32>)> = vec![];
+    let prologue_end = program
+        .directives
+        .last()
+        .map(|directive| directive.span.end)
+        .or(hashbang_end)
+        .unwrap_or(bom_len as u32);
+    // Ranges of each import with the comments it owns, the body index of the import,
+    // and the text that replaces the import.
+    let mut imports: Vec<(usize, Range<u32>, Option<String>)> = vec![];
     let mut top_comments: &[Comment] = &[];
     for (idx, stmt) in body.iter().enumerate() {
         let Statement::ImportDeclaration(decl) = stmt else {
@@ -107,6 +118,11 @@ pub fn hoist_imports<'a>(
                 gap
             }
         };
+        // The comments that end up directly before the import, where Prettier reads `prettier-ignore`.
+        let is_ignored =
+            if idx == 0 { comments_in(comments, prologue_end, start) } else { leading }
+                .iter()
+                .any(|comment| is_prettier_ignore(source, comment));
         if idx == first_import_idx {
             let top_count = leading
                 .iter()
@@ -134,7 +150,18 @@ pub fn hoist_imports<'a>(
         );
         let range = leading.first().map_or(start, |comment| comment.span.start)
             ..trailing.last().map_or(decl.span.end, |comment| comment.span.end);
-        imports.push((idx, range));
+        let has_comment_after_with_clause = decl.with_clause.as_ref().is_some_and(|with_clause| {
+            !comments_in(comments, with_clause.span.end, decl.span.end).is_empty()
+        });
+        let babel_text = if is_ignored
+            || has_comment_after_with_clause
+            || decl.specifiers.as_ref().is_some_and(|s| s.is_empty())
+        {
+            babel_import_text(decl, source, comments)
+        } else {
+            None
+        };
+        imports.push((idx, range, babel_text));
     }
     removed.extend(top_comments.iter().map(|comment| comment.span.start..comment.span.end));
     removed.sort_unstable_by_key(|range| range.start);
@@ -166,8 +193,26 @@ pub fn hoist_imports<'a>(
         if last != Last::Nothing {
             out.push('\n');
         }
+        let directives = &program.directives;
+        out.push_str(text(block.start..directives[0].span.start));
+        for (idx, directive) in directives.iter().enumerate() {
+            out.push_str(text(directive.span.start..directive.span.end));
+            let Some(next) = directives.get(idx + 1) else {
+                break;
+            };
+            // Babel puts each directive on its own line,
+            // and a blank line before the comments that follow a directive.
+            match comments_in(comments, directive.span.end, next.span.start) {
+                [] => out.push('\n'),
+                [first, .., last] | [first @ last] => {
+                    out.push_str("\n\n");
+                    out.push_str(text(first.span.start..last.span.end));
+                    let gap = text(last.span.end..next.span.start);
+                    out.push_str(if gap.contains(is_line_terminator) { gap } else { "\n" });
+                }
+            }
+        }
         last_end = block.end;
-        out.push_str(text(block));
         last = Last::Directives;
     }
     for comment in directive_comments {
@@ -209,10 +254,16 @@ pub fn hoist_imports<'a>(
                 .or(hashbang_end)
                 .unwrap_or(bom_len as u32),
         };
-        decl.specifiers.is_none() && comments_in(comments, prev_end, decl.span.start).is_empty()
+        decl.specifiers
+            .as_ref()
+            .is_none_or(|specifiers| specifiers.is_empty() && !decl.import_kind.is_type())
+            && comments_in(comments, prev_end, decl.span.start).is_empty()
     };
+    let mut import_facts = vec![];
+    // Byte offset and line number in the source of the last import start counted.
+    let mut line_cursor = (0, 0);
     let mut prev_import: Option<(usize, u32)> = None;
-    for (idx, range) in imports {
+    for (idx, range, babel_text) in imports {
         let separator = match prev_import {
             Some((prev_idx, prev_end)) => {
                 let between = text(prev_end..range.start);
@@ -238,8 +289,23 @@ pub fn hoist_imports<'a>(
             },
         };
         out.push_str(separator);
+        let decl_start = body[idx].span().start as usize;
+        line_cursor = (decl_start, line_cursor.1 + line_breaks(&source[line_cursor.0..decl_start]));
+        import_facts.push(HoistedImportFacts {
+            start: (out.len() + decl_start - range.start as usize) as u32,
+            line: line_cursor.1 as u32,
+            follows_import: prev_import.is_none_or(|(prev_idx, _)| prev_idx + 1 == idx),
+        });
         prev_import = Some((idx, range.end));
-        out.push_str(text(range));
+        match babel_text {
+            Some(babel_text) => {
+                let decl_span = body[idx].span();
+                out.push_str(text(range.start..decl_span.start));
+                out.push_str(&babel_text);
+                out.push_str(text(decl_span.end..range.end));
+            }
+            None => out.push_str(text(range)),
+        }
     }
 
     let mut rest = String::new();
@@ -261,7 +327,56 @@ pub fn hoist_imports<'a>(
         return None;
     }
     out.push('\n');
-    Some(allocator.alloc_str(&out))
+    let has_top_of_file_comments = if has_prologue && first_import_idx == 0 {
+        let first_import_start = body[0].span().start;
+        comments_in(comments, prologue_end, first_import_start)
+            .iter()
+            .any(|comment| has_line_break(source, comment.span.end, first_import_start))
+    } else {
+        !top_comments.is_empty()
+    };
+    Some(HoistedSource {
+        source_text: allocator.alloc_str(&out),
+        facts: HoistFacts {
+            top_comments_followed_code: has_prologue
+                && first_import_idx > 0
+                && !top_comments.is_empty(),
+            has_top_of_file_comments,
+            imports: import_facts,
+        },
+    })
+}
+
+/// The source text written by [`hoist_imports`].
+pub struct HoistedSource<'a> {
+    pub source_text: &'a str,
+    pub facts: HoistFacts,
+}
+
+/// What the source looked like before [`hoist_imports`] rewrote it,
+/// for the comment and blank line rules of the import sorting.
+#[derive(Clone, Debug, Default)]
+pub struct HoistFacts {
+    /// Whether statements stood between the prologue (hashbang or directives)
+    /// and the "top of file" comments of the first import.
+    /// Those comments then count as the start of the file, not as comments of the prologue.
+    pub top_comments_followed_code: bool,
+    /// Whether comments before the first import end on an earlier line than it,
+    /// after the prologue or the previous statement ("top of file" comments).
+    pub has_top_of_file_comments: bool,
+    /// The top-level imports, in order.
+    pub imports: Vec<HoistedImportFacts>,
+}
+
+/// An import moved by [`hoist_imports`].
+#[derive(Clone, Copy, Debug)]
+pub struct HoistedImportFacts {
+    /// Offset of the import declaration in the rewritten source.
+    pub start: u32,
+    /// Line of the import declaration in the source.
+    pub line: u32,
+    /// Whether the previous statement in the source was an import, or there was none.
+    pub follows_import: bool,
 }
 
 /// The last part written before the imports.
@@ -273,6 +388,110 @@ enum Last {
     Directives,
     DirectiveComment,
     TopComment,
+}
+
+/// The import as `@babel/generator` prints it, which `@ianvs/prettier-plugin-sort-imports` writes
+/// before Prettier formats the file: on one line, `import {} from` as a side effect import.
+/// The text after the source or `with` clause (a semicolon, comments) is kept,
+/// with the comments after a `with` clause moved before it.
+/// `None` when comments sit inside the import, or it has an import phase or an empty `with` clause.
+fn babel_import_text(
+    decl: &ImportDeclaration,
+    source: &str,
+    comments: &[Comment],
+) -> Option<String> {
+    let clause_end = decl.with_clause.as_ref().map_or(decl.source.span.end, |w| w.span.end);
+    if decl.phase.is_some()
+        || decl.with_clause.as_ref().is_some_and(|with_clause| with_clause.with_entries.is_empty())
+        || !comments_in(comments, decl.span.start, clause_end).is_empty()
+    {
+        return None;
+    }
+    let text = |span: Span| &source[span.start as usize..span.end as usize];
+
+    let mut out = String::from("import ");
+    if decl.import_kind.is_type() {
+        out.push_str("type ");
+    }
+    let specifiers = decl.specifiers.as_ref().map_or(&[][..], |specifiers| specifiers.as_slice());
+    let named_start = specifiers
+        .iter()
+        .position(|specifier| matches!(specifier, ImportDeclarationSpecifier::ImportSpecifier(_)))
+        .unwrap_or(specifiers.len());
+    for (idx, specifier) in specifiers[..named_start].iter().enumerate() {
+        if idx > 0 {
+            out.push_str(", ");
+        }
+        match specifier {
+            ImportDeclarationSpecifier::ImportDefaultSpecifier(default) => {
+                out.push_str(&default.local.name);
+            }
+            ImportDeclarationSpecifier::ImportNamespaceSpecifier(namespace) => {
+                out.push_str("* as ");
+                out.push_str(&namespace.local.name);
+            }
+            ImportDeclarationSpecifier::ImportSpecifier(_) => {}
+        }
+    }
+    let named = &specifiers[named_start..];
+    if !named.is_empty() {
+        if named_start > 0 {
+            out.push_str(", ");
+        }
+        out.push_str("{ ");
+        for (idx, specifier) in named.iter().enumerate() {
+            let ImportDeclarationSpecifier::ImportSpecifier(specifier) = specifier else {
+                return None;
+            };
+            if idx > 0 {
+                out.push_str(", ");
+            }
+            if specifier.import_kind.is_type() {
+                out.push_str("type ");
+            }
+            out.push_str(text(specifier.imported.span()));
+            if !matches!(&specifier.imported, ModuleExportName::IdentifierName(name) if name.name == specifier.local.name)
+            {
+                out.push_str(" as ");
+                out.push_str(&specifier.local.name);
+            }
+        }
+        out.push_str(" }");
+    } else if decl.import_kind.is_type() && specifiers.is_empty() {
+        out.push_str("{}");
+    }
+    if !specifiers.is_empty() || decl.import_kind.is_type() {
+        out.push_str(" from ");
+    }
+    out.push_str(text(decl.source.span));
+    let tail_comments = comments_in(comments, clause_end, decl.span.end);
+    let mut tail_start = clause_end;
+    if let Some(with_clause) = &decl.with_clause {
+        // Babel prints the comments between the `with` clause and the semicolon after the source.
+        if let (Some(first), Some(last)) = (tail_comments.first(), tail_comments.last()) {
+            out.push(' ');
+            out.push_str(text(Span::new(first.span.start, last.span.end)));
+            tail_start = last.span.end;
+        }
+        out.push_str(" with { ");
+        for (idx, entry) in with_clause.with_entries.iter().enumerate() {
+            if idx > 0 {
+                out.push_str(", ");
+            }
+            out.push_str(text(entry.key.span()));
+            out.push_str(": ");
+            out.push_str(text(entry.value.span));
+        }
+        out.push_str(" }");
+    }
+    out.push_str(text(Span::new(tail_start, decl.span.end)));
+    Some(out)
+}
+
+/// Whether `comment` is `prettier-ignore`, as `@ianvs/prettier-plugin-sort-imports` reads it.
+fn is_prettier_ignore(source: &str, comment: &Comment) -> bool {
+    let content = comment.content_span();
+    source[content.start as usize..content.end as usize].trim() == "prettier-ignore"
 }
 
 /// The comments that start in `start..end`, which hold no statement.

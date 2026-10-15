@@ -131,10 +131,12 @@ pub fn format_to_ir<'a>(
     let allocator = session.allocator();
     let program = parse(allocator, allocator.alloc_str(source_text), source_type)?;
     // JHPATCH: Move imports to the top before formatting (sortImports.hoist)
-    let program = hoist_imports(allocator, program, &options);
+    let (program, hoist_facts) = hoist_imports(allocator, program, &options);
     let node = AstNode::new(program, AstNodes::Dummy(), allocator);
     let mut context =
         JsFormatContext::new(program.source_text, program.source_type, &program.comments, options);
+    // JHPATCH: Pass the hoist result to the context (sortImports.hoist)
+    context.set_hoist_facts(hoist_facts);
     // JHPATCH: Semicolon rule moved to embedding_omits_semicolon, shared with format_embedded_with_session (sortImports in MDX)
     context.set_embedding_omits_semicolon(embedding_omits_semicolon(program, embedded_in));
 
@@ -168,10 +170,11 @@ pub fn format_embedded_with_session<'a>(
         return Err(OxcDiagnostic::error("Only import/export declarations are allowed in MDX ESM"));
     }
 
-    let program = hoist_imports(session.allocator(), program, &options);
+    let (program, hoist_facts) = hoist_imports(session.allocator(), program, &options);
     let node = AstNode::new(program, AstNodes::Dummy(), session.allocator());
     let mut context =
         JsFormatContext::new(program.source_text, program.source_type, &program.comments, options);
+    context.set_hoist_facts(hoist_facts);
     context.set_embedding_omits_semicolon(embedding_omits_semicolon(program, embedded_in));
 
     Ok(formatter::format(
@@ -310,16 +313,16 @@ fn format_program_with_session<'a>(
     program: &'a Program<'a>,
     options: JsFormatOptions,
 ) -> Formatted<'a, JsFormatContext<'a>> {
-    // JHPATCH: Move imports to the top before formatting (sortImports.hoist)
-    let program = hoist_imports(session.allocator(), program, &options);
+    // JHPATCH: Move imports to the top before formatting, and pass the hoist result to the context (sortImports.hoist)
+    let (program, hoist_facts) = hoist_imports(session.allocator(), program, &options);
     let node = AstNode::new(program, AstNodes::Dummy(), session.allocator());
-    format_node(
+    let mut context =
+        JsFormatContext::new(program.source_text, program.source_type, &program.comments, options);
+    context.set_hoist_facts(hoist_facts);
+    formatter::format(
+        context,
         session,
-        options,
-        &node,
-        program.source_text,
-        program.source_type,
-        &program.comments,
+        oxc_formatter_core::Arguments::new(&[oxc_formatter_core::Argument::new(&node)]),
     )
 }
 
@@ -373,20 +376,25 @@ fn parse<'a>(
 // JHPATCH: Re-parse with imports moved to the top (sortImports.hoist)
 /// With `sortImports.hoist`, re-parse `program` from its source with the imports moved to the top
 /// ([`ir_transform::hoist_imports`]), when that changes the source.
+///
+/// Also returns what the source looked like before, when it was rewritten.
 fn hoist_imports<'a>(
     allocator: &'a Allocator,
     program: &'a Program<'a>,
     options: &JsFormatOptions,
-) -> &'a Program<'a> {
+) -> (&'a Program<'a>, Option<ir_transform::HoistFacts>) {
     let Some(sort_imports) =
         options.sort_imports.as_ref().filter(|sort_imports| sort_imports.hoist)
     else {
-        return program;
+        return (program, None);
     };
-    let Some(source_text) = ir_transform::hoist_imports(program, sort_imports, allocator) else {
-        return program;
+    let Some(hoisted) = ir_transform::hoist_imports(program, sort_imports, allocator) else {
+        return (program, None);
     };
-    parse(allocator, source_text, program.source_type).unwrap_or(program)
+    match parse(allocator, hoisted.source_text, program.source_type) {
+        Ok(program) => (program, Some(hoisted.facts)),
+        Err(_) => (program, None),
+    }
 }
 
 /// Run the IR formatter over a single `Format` value and return its `Formatted` IR.

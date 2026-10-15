@@ -3,7 +3,10 @@ use oxc_formatter_core::{FormatElement, SourceText};
 use oxc_span::{GetSpan, SourceType, Span};
 use rustc_hash::FxHashMap;
 
-use crate::{options::JsFormatOptions, utils::assignment_like::AssignmentLikeLayout};
+use crate::{
+    ir_transform::HoistFacts, options::JsFormatOptions,
+    utils::assignment_like::AssignmentLikeLayout,
+};
 
 use super::Comments;
 
@@ -103,6 +106,10 @@ pub struct JsFormatContext<'ast> {
     /// Set only for an embedded program (see [`crate::format_to_ir`]):
     /// its sole statement prints without its semicolon.
     embedding_omits_semicolon: bool,
+
+    // JHPATCH: Hoist result for the comment rules of the import chunk (sortImports.hoist)
+    /// Set when `sortImports.hoist` rewrote the source.
+    hoist_facts: Option<HoistFacts>,
 }
 
 impl std::fmt::Debug for JsFormatContext<'_> {
@@ -148,6 +155,8 @@ impl<'ast> JsFormatContext<'ast> {
             quote_needed_stack: Vec::new(),
             tailwind_context_stack: Vec::new(),
             embedding_omits_semicolon: false,
+            // JHPATCH: Hoist result for the comment rules of the import chunk (sortImports.hoist)
+            hoist_facts: None,
         }
     }
 
@@ -239,6 +248,16 @@ impl<'ast> JsFormatContext<'ast> {
 
     pub(crate) fn embedding_omits_semicolon(&self) -> bool {
         self.embedding_omits_semicolon
+    }
+
+    // JHPATCH: Hoist result for the comment rules of the import chunk (sortImports.hoist)
+    pub(crate) fn set_hoist_facts(&mut self, facts: Option<HoistFacts>) {
+        self.hoist_facts = facts;
+    }
+
+    // JHPATCH: Hoist result for the comment rules of the import chunk (sortImports.hoist)
+    pub(crate) fn hoist_facts(&self) -> Option<&HoistFacts> {
+        self.hoist_facts.as_ref()
     }
 
     /// Push a Tailwind context entry onto the stack.
