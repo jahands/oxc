@@ -55,3 +55,42 @@ Text {/* inline */} and \`{/*\` code
     expect(result.errors).toStrictEqual([]);
   });
 });
+
+describe("MDX sortImports.hoist", () => {
+  it("should hoist imports within each ESM block and code block", async () => {
+    const input = `export const meta = { title: "x" };
+import { b } from "b";
+import { a } from "a";
+
+# Title
+
+export const other = 1;
+import { c } from "c";
+
+\`\`\`ts
+const value = 1;
+import { d } from "d";
+\`\`\`
+`;
+    const result = await format("a.mdx", input, { sortImports: { hoist: true } });
+
+    expect(result.code).toBe(`import { a } from "a";
+import { b } from "b";
+
+export const meta = { title: "x" };
+
+# Title
+
+import { c } from "c";
+
+export const other = 1;
+
+\`\`\`ts
+import { d } from "d";
+
+const value = 1;
+\`\`\`
+`);
+    expect(result.errors).toStrictEqual([]);
+  });
+});

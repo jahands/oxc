@@ -165,6 +165,7 @@ pub fn format_embedded_with_session<'a>(
         return Err(OxcDiagnostic::error("Only import/export declarations are allowed in MDX ESM"));
     }
 
+    let program = hoist_imports(session.allocator(), program, &options);
     let node = AstNode::new(program, AstNodes::Dummy(), session.allocator());
     let mut context =
         JsFormatContext::new(program.source_text, program.source_type, &program.comments, options);
