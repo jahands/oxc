@@ -11,6 +11,9 @@ pub struct SortImportsOptions {
     /// Partition imports by comments.
     /// Default is `false`.
     pub partition_by_comment: bool,
+    /// Partition imports by side effect imports that keep their position.
+    /// Default is `false`.
+    pub partition_by_side_effect: bool,
     /// Sort side effects imports.
     /// Default is `false`.
     pub sort_side_effects: bool,
@@ -20,6 +23,12 @@ pub struct SortImportsOptions {
     /// Ignore case when sorting.
     /// Default is `true`.
     pub ignore_case: bool,
+    /// How import sources (and specifiers, with `sort_specifiers`) are compared.
+    /// Default is [`SortCollation::Natural`].
+    pub collation: SortCollation,
+    /// Sort named specifiers inside `{ ... }`.
+    /// Default is `false`.
+    pub sort_specifiers: bool,
     /// Whether to insert blank lines between different import groups.
     /// - `true`: Insert one blank line between groups (default)
     /// - `false`: No blank lines between groups
@@ -100,9 +109,12 @@ impl Default for SortImportsOptions {
         Self {
             partition_by_newline: false,
             partition_by_comment: false,
+            partition_by_side_effect: false,
             sort_side_effects: false,
             order: SortOrder::default(),
             ignore_case: true,
+            collation: SortCollation::default(),
+            sort_specifiers: false,
             newlines_between: true,
             internal_pattern: default_internal_patterns(),
             groups: default_groups(),
@@ -152,6 +164,35 @@ impl fmt::Display for SortOrder {
             SortOrder::Desc => "DESC",
         };
         f.write_str(s)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+pub enum SortCollation {
+    /// Code point order with digit runs compared as numbers.
+    #[default]
+    Natural,
+    /// The order of `Intl.Collator('en', { sensitivity: 'base', numeric: true })`.
+    Intl,
+}
+
+impl SortCollation {
+    pub const fn is_intl(self) -> bool {
+        matches!(self, Self::Intl)
+    }
+}
+
+impl FromStr for SortCollation {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "natural" => Ok(Self::Natural),
+            "intl" => Ok(Self::Intl),
+            _ => Err(
+                "Value not supported for SortCollation. Supported values are 'natural' and 'intl'.",
+            ),
+        }
     }
 }
 

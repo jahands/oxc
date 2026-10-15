@@ -1,9 +1,9 @@
 use std::{borrow::Cow, path::Path};
 
-use cow_utils::CowUtils;
 use phf::phf_set;
 
 use crate::ir_transform::sort_imports::{
+    collation::normalize_name,
     group_config::{ImportModifier, ImportSelector},
     group_matcher::{GroupMatcher, ImportMetadata},
     options::SortImportsOptions,
@@ -28,9 +28,9 @@ pub fn compute_import_metadata<'a>(
         modifiers: compute_modifiers(metadata),
     });
 
-    // Pre-compute normalized source for case-insensitive comparison
-    let normalized_source =
-        if options.ignore_case { source.cow_to_lowercase() } else { Cow::Borrowed(source) };
+    // `Intl` collation compares the whole specifier, including any `?query`.
+    let sort_source = if options.collation.is_intl() { unquote(metadata.source) } else { source };
+    let normalized_source = normalize_name(sort_source, options);
 
     // Determine if this import should be ignored (not moved between groups)
     // - If `sort_side_effects: true`, never ignore
@@ -147,8 +147,12 @@ fn compute_modifiers(metadata: &ImportLineMetadata) -> Vec<ImportModifier> {
 /// This removes quotes and query parameters from the source string.
 /// For example, `"./foo.js?bar"` becomes `./foo.js`.
 fn extract_source_path(source: &str) -> &str {
-    let source = source.trim_matches('"').trim_matches('\'');
+    let source = unquote(source);
     source.split('?').next().unwrap_or(source)
+}
+
+fn unquote(source: &str) -> &str {
+    source.trim_matches('"').trim_matches('\'')
 }
 
 // spellchecker:off

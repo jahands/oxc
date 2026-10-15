@@ -45,6 +45,7 @@ export type PrettierCompatConfig = "3.9";
 export type ProseWrapConfig = "always" | "never" | "preserve";
 export type QuotePropsConfig = "as-needed" | "consistent" | "preserve";
 export type SortImportsUserConfig = boolean | SortImportsConfig;
+export type SortCollationConfig = "natural" | "intl";
 /**
  * Modifier matching the import characteristics in `customGroups` (see `sortImports.groups` for semantics).
  */
@@ -814,6 +815,20 @@ export interface FormatConfig {
 }
 export interface SortImportsConfig {
   /**
+   * How import sources and specifier names are compared.
+   *
+   * - `"natural"`: Code point order, with digit runs compared as numbers.
+   * - `"intl"`: The order of `a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true })`,
+   * as used by `@ianvs/prettier-plugin-sort-imports`.
+   * Symbols sort before digits and digits before letters (e.g. `@scope/pkg` before `#subpath`, `a_b` before `a-b`).
+   * The whole module specifier is compared, including any `?query`.
+   * Case is always ignored; with `ignoreCase: false`, names that compare equal are ordered by code point.
+   * Non-ASCII characters sort after ASCII letters by code point, which can differ from `Intl.Collator`.
+   *
+   * - Default: `"natural"`
+   */
+  collation?: SortCollationConfig;
+  /**
    * Define your own groups for matching very specific imports.
    *
    * The first matching definition is used, and custom groups take precedence over predefined groups.
@@ -931,6 +946,29 @@ export interface SortImportsConfig {
    */
   partitionByNewline?: boolean;
   /**
+   * Use side effect imports to separate imports into logical groups.
+   *
+   * When `true`, imports are not sorted across a side effect import that keeps its position
+   * (see `sortSideEffects`).
+   *
+   * If any group boundary inserts newlines (`newlinesBetween: true` or a `{ "newlinesBetween": true }` marker),
+   * a run of side effect imports also gets a blank line after it, and one before it.
+   * The blank line before is left out when the run starts with a comment
+   * and no group boundary after the previous import's group inserts newlines.
+   *
+   * ```js
+   * import { b } from 'b'
+   * import { c } from 'c'
+   *
+   * import './setup'
+   *
+   * import { a } from 'a'
+   * ```
+   *
+   * - Default: `false`
+   */
+  partitionBySideEffect?: boolean;
+  /**
    * Sort side effect imports.
    *
    * Disabled by default for safety reasons.
@@ -938,6 +976,20 @@ export interface SortImportsConfig {
    * - Default: `false`
    */
   sortSideEffects?: boolean;
+  /**
+   * Sort named specifiers inside `{ ... }`.
+   *
+   * Value specifiers come before inline `type` specifiers, then specifiers are ordered by their local name,
+   * following `collation`, `ignoreCase` and `order`.
+   * Specifier lists that contain comments are left as written.
+   *
+   * ```js
+   * import { alpha, Beta, Zed, type Alpha } from 'x'
+   * ```
+   *
+   * - Default: `false`
+   */
+  sortSpecifiers?: boolean;
   [k: string]: unknown;
 }
 export interface CustomGroupItemConfig {

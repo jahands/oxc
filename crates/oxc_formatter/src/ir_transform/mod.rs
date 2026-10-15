@@ -25,6 +25,6 @@
 //! - <https://github.com/oxc-project/oxc/pull/14651> (initial experiment, IR level)
 //! - <https://github.com/oxc-project/oxc/pull/22065> (move to during-IR-construction)
 
-mod sort_imports;
+pub mod sort_imports;
 
 pub use sort_imports::*;

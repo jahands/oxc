@@ -903,6 +903,13 @@
         "preserve"
       ]
     },
+    "SortCollationConfig": {
+      "type": "string",
+      "enum": [
+        "natural",
+        "intl"
+      ]
+    },
     "SortGroupItemConfig": {
       "anyOf": [
         {
@@ -932,6 +939,15 @@
     "SortImportsConfig": {
       "type": "object",
       "properties": {
+        "collation": {
+          "description": "How import sources and specifier names are compared.\n\n- `\"natural\"`: Code point order, with digit runs compared as numbers.\n- `\"intl\"`: The order of `a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true })`,\nas used by `@ianvs/prettier-plugin-sort-imports`.\nSymbols sort before digits and digits before letters (e.g. `@scope/pkg` before `#subpath`, `a_b` before `a-b`).\nThe whole module specifier is compared, including any `?query`.\nCase is always ignored; with `ignoreCase: false`, names that compare equal are ordered by code point.\nNon-ASCII characters sort after ASCII letters by code point, which can differ from `Intl.Collator`.\n\n- Default: `\"natural\"`",
+          "allOf": [
+            {
+              "$ref": "#/definitions/SortCollationConfig"
+            }
+          ],
+          "markdownDescription": "How import sources and specifier names are compared.\n\n- `\"natural\"`: Code point order, with digit runs compared as numbers.\n- `\"intl\"`: The order of `a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true })`,\nas used by `@ianvs/prettier-plugin-sort-imports`.\nSymbols sort before digits and digits before letters (e.g. `@scope/pkg` before `#subpath`, `a_b` before `a-b`).\nThe whole module specifier is compared, including any `?query`.\nCase is always ignored; with `ignoreCase: false`, names that compare equal are ordered by code point.\nNon-ASCII characters sort after ASCII letters by code point, which can differ from `Intl.Collator`.\n\n- Default: `\"natural\"`"
+        },
         "customGroups": {
           "description": "Define your own groups for matching very specific imports.\n\nThe first matching definition is used, and custom groups take precedence over predefined groups.\nTo give a predefined group precedence, define an equivalent custom group and put it first.\n\nWhen multiple conditions (`elementNamePattern`, `selector`, `modifiers`) are specified,\nall of them must match.\n\nNOTE: Predefined group names (e.g. `side_effect`, `external`) and `unknown` are reserved and cannot be used as `groupName`.\n\n- Default: `[]`",
           "type": "array",
@@ -985,10 +1001,20 @@
           "type": "boolean",
           "markdownDescription": "Use empty lines to separate imports into logical groups.\n\nWhen `true`, imports are not sorted across an empty line.\n\n```js\nimport { b1, b2 } from 'b'\n\nimport { a } from 'a'\nimport { c } from 'c'\n```\n\n- Default: `false`"
         },
+        "partitionBySideEffect": {
+          "description": "Use side effect imports to separate imports into logical groups.\n\nWhen `true`, imports are not sorted across a side effect import that keeps its position\n(see `sortSideEffects`).\n\nIf any group boundary inserts newlines (`newlinesBetween: true` or a `{ \"newlinesBetween\": true }` marker),\na run of side effect imports also gets a blank line after it, and one before it.\nThe blank line before is left out when the run starts with a comment\nand no group boundary after the previous import's group inserts newlines.\n\n```js\nimport { b } from 'b'\nimport { c } from 'c'\n\nimport './setup'\n\nimport { a } from 'a'\n```\n\n- Default: `false`",
+          "type": "boolean",
+          "markdownDescription": "Use side effect imports to separate imports into logical groups.\n\nWhen `true`, imports are not sorted across a side effect import that keeps its position\n(see `sortSideEffects`).\n\nIf any group boundary inserts newlines (`newlinesBetween: true` or a `{ \"newlinesBetween\": true }` marker),\na run of side effect imports also gets a blank line after it, and one before it.\nThe blank line before is left out when the run starts with a comment\nand no group boundary after the previous import's group inserts newlines.\n\n```js\nimport { b } from 'b'\nimport { c } from 'c'\n\nimport './setup'\n\nimport { a } from 'a'\n```\n\n- Default: `false`"
+        },
         "sortSideEffects": {
           "description": "Sort side effect imports.\n\nDisabled by default for safety reasons.\n\n- Default: `false`",
           "type": "boolean",
           "markdownDescription": "Sort side effect imports.\n\nDisabled by default for safety reasons.\n\n- Default: `false`"
+        },
+        "sortSpecifiers": {
+          "description": "Sort named specifiers inside `{ ... }`.\n\nValue specifiers come before inline `type` specifiers, then specifiers are ordered by their local name,\nfollowing `collation`, `ignoreCase` and `order`.\nSpecifier lists that contain comments are left as written.\n\n```js\nimport { alpha, Beta, Zed, type Alpha } from 'x'\n```\n\n- Default: `false`",
+          "type": "boolean",
+          "markdownDescription": "Sort named specifiers inside `{ ... }`.\n\nValue specifiers come before inline `type` specifiers, then specifiers are ordered by their local name,\nfollowing `collation`, `ignoreCase` and `order`.\nSpecifier lists that contain comments are left as written.\n\n```js\nimport { alpha, Beta, Zed, type Alpha } from 'x'\n```\n\n- Default: `false`"
         }
       }
     },
