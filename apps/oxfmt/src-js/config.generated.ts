@@ -41,6 +41,7 @@ export type JsdocUserConfig = boolean | JsdocConfig;
 export type CommentLineStrategyConfig = "singleLine" | "multiline" | "keep";
 export type LineWrappingStyleConfig = "greedy" | "balance";
 export type ObjectWrapConfig = "preserve" | "collapse";
+export type PrettierCompatConfig = "3.9";
 export type ProseWrapConfig = "always" | "never" | "preserve";
 export type QuotePropsConfig = "as-needed" | "consistent" | "preserve";
 export type SortImportsUserConfig = boolean | SortImportsConfig;
@@ -223,6 +224,16 @@ export interface Oxfmtrc {
    * - Default: `[]`
    */
   overrides?: OxfmtOverrideConfig[];
+  /**
+   * Follow a newer Prettier version's output where Oxfmt deliberately keeps an earlier Prettier style.
+   *
+   * - `"3.9"`: a union type that does not fit on the line first retries flat on the indented next line,
+   * and only then breaks one member per line; a union in a conditional type branch starts behind `? ` / `: `
+   *
+   * - Languages: JS, JSX, TS, TSX
+   * - Default: Disabled
+   */
+  prettierCompat?: PrettierCompatConfig;
   /**
    * Specify the line length that the printer will wrap on.
    *
@@ -638,6 +649,16 @@ export interface FormatConfig {
    * - Default: `"preserve"`
    */
   objectWrap?: ObjectWrapConfig;
+  /**
+   * Follow a newer Prettier version's output where Oxfmt deliberately keeps an earlier Prettier style.
+   *
+   * - `"3.9"`: a union type that does not fit on the line first retries flat on the indented next line,
+   * and only then breaks one member per line; a union in a conditional type branch starts behind `? ` / `: `
+   *
+   * - Languages: JS, JSX, TS, TSX
+   * - Default: Disabled
+   */
+  prettierCompat?: PrettierCompatConfig;
   /**
    * Specify the line length that the printer will wrap on.
    *

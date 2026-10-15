@@ -521,6 +521,8 @@ A union broken out of its `:`/`as` position expands to leading-`|` members right
 Prettier 3.9 changed this to first retry the whole union FLAT on the indented next line and only then expand.
 Community pushback on the 3.9 style (users migrated to Oxfmt over it) put following on hold:
 ours deliberately matches Prettier 3.8's output for this construct.
+`prettierCompat: "3.9"` follows Prettier 3.9 here, including the conditional-type branch layout from the same change (`? | A` with no extra indent);
+pinned by `tests/fixtures/ts/union/prettier-compat/annotation-flat-retry.ts`.
 
 ## arrow-chain-exact-fill-signature
 

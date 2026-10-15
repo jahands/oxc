@@ -3,8 +3,8 @@ use oxc_formatter::SortTailwindcssOptions;
 use oxc_formatter::{
     ArrowParentheses, AttributePosition, BracketSameLine, BracketSpacing, CommentLineStrategy,
     CustomGroupDefinition, Expand, GroupEntry, ImportModifier, ImportSelector, JsFormatOptions,
-    JsdocOptions, LineWrappingStyle, OperatorPosition, QuoteProperties, QuoteStyle, Semicolons,
-    SortImportsOptions, SortOrder, TrailingCommas,
+    JsdocOptions, LineWrappingStyle, OperatorPosition, PrettierCompat, QuoteProperties, QuoteStyle,
+    Semicolons, SortImportsOptions, SortOrder, TrailingCommas,
 };
 use oxc_formatter_core::{CoreFormatOptions, FormatOptions};
 
@@ -13,8 +13,8 @@ use super::super::oxfmtrc::SortTailwindcssUserConfig;
 use super::super::oxfmtrc::{
     ArrowParensConfig, CommentLineStrategyConfig, FormatConfig, HtmlWhitespaceSensitivityConfig,
     ImportModifierConfig, ImportSelectorConfig, JsdocUserConfig, LineWrappingStyleConfig,
-    ObjectWrapConfig, OperatorPositionConfig, QuotePropsConfig, SortGroupItemConfig,
-    SortImportsUserConfig, SortOrderConfig, TrailingCommaConfig,
+    ObjectWrapConfig, OperatorPositionConfig, PrettierCompatConfig, QuotePropsConfig,
+    SortGroupItemConfig, SortImportsUserConfig, SortOrderConfig, TrailingCommaConfig,
 };
 
 /// Convert `FormatConfig` into `JsFormatOptions` for `oxc_formatter`.
@@ -120,6 +120,9 @@ pub fn to_oxc_formatter(
 
     format_options.sort_imports = sort_imports;
     format_options.jsdoc = to_jsdoc(config);
+    format_options.prettier_compat = config.prettier_compat.map(|compat| match compat {
+        PrettierCompatConfig::V3_9 => PrettierCompat::V3_9,
+    });
     // napi only, like the CSS mapper: collection itself normalizes whitespace,
     // so enabling it without the JS-side sorter would apply half the feature
     // (normalized but unsorted classes).
@@ -441,6 +444,17 @@ mod tests {
         let config: FormatConfig = serde_json::from_str(r#"{"objectWrap": "collapse"}"#).unwrap();
         let format_options = build(&config).unwrap();
         assert_eq!(format_options.expand, Expand::Never);
+    }
+
+    #[test]
+    fn test_prettier_compat() {
+        let config: FormatConfig = serde_json::from_str(r#"{"prettierCompat": "3.9"}"#).unwrap();
+        assert_eq!(build(&config).unwrap().prettier_compat, Some(PrettierCompat::V3_9));
+
+        let config: FormatConfig = serde_json::from_str("{}").unwrap();
+        assert_eq!(build(&config).unwrap().prettier_compat, None);
+
+        assert!(serde_json::from_str::<FormatConfig>(r#"{"prettierCompat": "3.8"}"#).is_err());
     }
 
     #[test]
