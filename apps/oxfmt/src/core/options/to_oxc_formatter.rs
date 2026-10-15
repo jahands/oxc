@@ -192,6 +192,9 @@ pub(super) fn to_sort_imports(config: &FormatConfig) -> Result<Option<SortImport
     if let Some(v) = sort_imports_config.sort_specifiers {
         sort_imports.sort_specifiers = v;
     }
+    if let Some(v) = sort_imports_config.hoist {
+        sort_imports.hoist = v;
+    }
     if let Some(v) = sort_imports_config.newlines_between {
         sort_imports.newlines_between = v;
     }
@@ -498,13 +501,15 @@ mod tests {
         assert!(!sort_imports.partition_by_side_effect);
         assert_eq!(sort_imports.collation, SortCollation::Natural);
         assert!(!sort_imports.sort_specifiers);
+        assert!(!sort_imports.hoist);
 
         let config: FormatConfig = serde_json::from_str(
             r#"{
                 "sortImports": {
                     "partitionBySideEffect": true,
                     "collation": "intl",
-                    "sortSpecifiers": true
+                    "sortSpecifiers": true,
+                    "hoist": true
                 }
             }"#,
         )
@@ -514,6 +519,7 @@ mod tests {
         assert!(sort_imports.partition_by_side_effect);
         assert_eq!(sort_imports.collation, SortCollation::Intl);
         assert!(sort_imports.sort_specifiers);
+        assert!(sort_imports.hoist);
 
         let config: FormatConfig = serde_json::from_str(
             r#"{
