@@ -37,6 +37,16 @@ pub struct SortImportsOptions {
     /// Imports inside `declare module` blocks are not sorted.
     /// Default is `false`.
     pub hoist: bool,
+    // JHPATCH: sortImports.mergeDuplicates and sortImports.splitTypeSpecifiers options
+    /// Merge imports of the same source into one declaration,
+    /// with the rules of `@ianvs/prettier-plugin-sort-imports`.
+    /// Type imports merge into value imports only without `split_type_specifiers`.
+    /// Default is `false`.
+    pub merge_duplicates: bool,
+    /// Split inline `type` specifiers out of a value import into a type import,
+    /// with the rules of `@ianvs/prettier-plugin-sort-imports`.
+    /// Default is `false`.
+    pub split_type_specifiers: bool,
     /// Whether to insert blank lines between different import groups.
     /// - `true`: Insert one blank line between groups (default)
     /// - `false`: No blank lines between groups
@@ -126,6 +136,9 @@ impl Default for SortImportsOptions {
             collation: SortCollation::default(),
             sort_specifiers: false,
             hoist: false,
+            // JHPATCH: Defaults for sortImports.mergeDuplicates and sortImports.splitTypeSpecifiers
+            merge_duplicates: false,
+            split_type_specifiers: false,
             newlines_between: true,
             internal_pattern: default_internal_patterns(),
             groups: default_groups(),

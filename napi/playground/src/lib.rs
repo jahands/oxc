@@ -626,6 +626,9 @@ impl Oxc {
                 collation: SortCollation::Natural,
                 sort_specifiers: false,
                 hoist: false,
+                // JHPATCH: New sortImports options (mergeDuplicates, splitTypeSpecifiers)
+                merge_duplicates: false,
+                split_type_specifiers: false,
                 newlines_between: sort_imports_config.newlines_between.unwrap_or(true),
                 internal_pattern: sort_imports_config
                     .internal_pattern

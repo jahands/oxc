@@ -1,5 +1,7 @@
 // JHPATCH: Move top-level imports to the top of the file (sortImports.hoist) to match @ianvs/prettier-plugin-sort-imports
-use std::ops::Range;
+use std::{borrow::Cow, ops::Range};
+
+use rustc_hash::FxHashMap;
 
 use oxc_allocator::Allocator;
 use oxc_ast::{
@@ -9,7 +11,10 @@ use oxc_ast::{
 use oxc_span::GetSpan;
 use oxc_syntax::line_terminator::is_line_terminator;
 
-use super::SortImportsOptions;
+use super::{
+    SortImportsOptions,
+    merge::{ImportRewrites, Rewrite},
+};
 
 /// Rewrite the source text of `program` so that every top-level import sits in one block
 /// at the top of the file, the way `@ianvs/prettier-plugin-sort-imports` lays out a file
@@ -26,6 +31,12 @@ use super::SortImportsOptions;
 /// An import owns the comments between the previous statement and itself,
 /// except those on the line where the previous import starts, which belong to that import.
 ///
+/// With `rewrites`, a merged import is written as its merged text, below its own comments
+/// and the comments of the imports merged into it, and an import merged into another one is left out.
+/// An import that is split, or merged into another one, owns no comments,
+/// and the comments it would own (and those of the imports merged into a split import)
+/// stay in the rest of the source or go to the next import.
+///
 /// With `partition_by_side_effect` and a group boundary that inserts newlines,
 /// a blank line separates the hashbang, or the comments after it or after the directives,
 /// from a first side effect import that has no comments before it.
@@ -35,8 +46,9 @@ use super::SortImportsOptions;
 pub fn hoist_imports<'a>(
     program: &Program<'a>,
     options: &SortImportsOptions,
+    rewrites: Option<&ImportRewrites>,
     allocator: &'a Allocator,
-) -> Option<&'a str> {
+) -> Option<HoistedSource<'a>> {
     let source = program.source_text;
     let body = &program.body;
     let first_import_idx =
@@ -81,8 +93,10 @@ pub fn hoist_imports<'a>(
     }
     removed.extend(directive_comments.iter().map(|comment| comment.span.start..comment.span.end));
 
-    // Ranges of each import with the comments it owns, and the body index of the import.
-    let mut imports: Vec<(usize, Range<u32>)> = vec![];
+    let keeps_comments = |idx: usize| rewrites.is_none_or(|rewrites| rewrites.keeps_comments(idx));
+    let mut imports: Vec<HoistedImport> = vec![];
+    // The comments owned by each import that is merged into an import that keeps its comments.
+    let mut moved_comments: FxHashMap<usize, &[Comment]> = FxHashMap::default();
     let mut top_comments: &[Comment] = &[];
     for (idx, stmt) in body.iter().enumerate() {
         let Statement::ImportDeclaration(decl) = stmt else {
@@ -95,7 +109,7 @@ pub fn hoist_imports<'a>(
         } else {
             let prev = &body[idx - 1];
             let gap = comments_in(comments, prev.span().end, start);
-            if matches!(prev, Statement::ImportDeclaration(_)) {
+            if matches!(prev, Statement::ImportDeclaration(_)) && keeps_comments(idx - 1) {
                 let owned_by_prev = gap
                     .iter()
                     .take_while(|comment| {
@@ -107,7 +121,7 @@ pub fn hoist_imports<'a>(
                 gap
             }
         };
-        if idx == first_import_idx {
+        if idx == first_import_idx && keeps_comments(idx) {
             let top_count = leading
                 .iter()
                 .take_while(|comment| has_line_break(source, comment.span.end, start))
@@ -122,7 +136,30 @@ pub fn hoist_imports<'a>(
             .iter()
             .take_while(|comment| !has_line_break(source, start, comment.span.start))
             .count();
-        let trailing = &trailing[..trailing_count];
+        let trailing = if keeps_comments(idx) { &trailing[..trailing_count] } else { &[] };
+
+        match rewrites.and_then(|rewrites| rewrites.get(idx)) {
+            Some(Rewrite::Absorbed(into)) => {
+                removed.push(decl.span.start..decl.span.end);
+                if keeps_comments(*into) {
+                    removed
+                        .extend(leading.iter().map(|comment| comment.span.start..comment.span.end));
+                    moved_comments.insert(idx, leading);
+                }
+                continue;
+            }
+            Some(Rewrite::Replace { split: Some(_), .. }) => {
+                removed.push(decl.span.start..decl.span.end);
+                imports.push(HoistedImport {
+                    idx,
+                    range: decl.span.start..decl.span.end,
+                    decl_range: decl.span.start..decl.span.end,
+                    leading: &[],
+                });
+                continue;
+            }
+            _ => {}
+        }
 
         // The text between the owned comments and the import stays in the rest of the source.
         removed.extend(
@@ -134,12 +171,78 @@ pub fn hoist_imports<'a>(
         );
         let range = leading.first().map_or(start, |comment| comment.span.start)
             ..trailing.last().map_or(decl.span.end, |comment| comment.span.end);
-        imports.push((idx, range));
+        imports.push(HoistedImport {
+            idx,
+            range,
+            decl_range: decl.span.start..decl.span.end,
+            leading,
+        });
     }
     removed.extend(top_comments.iter().map(|comment| comment.span.start..comment.span.end));
     removed.sort_unstable_by_key(|range| range.start);
 
     let text = |range: Range<u32>| &source[range.start as usize..range.end as usize];
+    let moved_for = |import: &HoistedImport| -> Vec<&Comment> {
+        match rewrites.and_then(|rewrites| rewrites.get(import.idx)) {
+            Some(Rewrite::Replace { absorbed, split: None, .. }) => absorbed
+                .iter()
+                .filter_map(|idx| moved_comments.get(idx))
+                .flat_map(|comments| comments.iter())
+                .collect(),
+            _ => vec![],
+        }
+    };
+    // The text of an import, the offset of its declaration in it,
+    // and the number of comments from merged imports on lines of their own above it.
+    let import_text = |import: &HoistedImport| -> (Cow<'_, str>, usize, usize) {
+        let Some(Rewrite::Replace { text: new_text, split, .. }) =
+            rewrites.and_then(|rewrites| rewrites.get(import.idx))
+        else {
+            let range = import.range.clone();
+            return (
+                Cow::Borrowed(text(range.clone())),
+                (import.decl_range.start - range.start) as usize,
+                0,
+            );
+        };
+        if split.is_some() {
+            return (Cow::Borrowed(new_text), 0, 0);
+        }
+        let moved = moved_for(import);
+        let mut moved_lines = moved.len();
+        let mut out = String::new();
+        if moved.is_empty() {
+            out.push_str(text(import.range.start..import.decl_range.start));
+        } else {
+            let mut last = import.leading.last();
+            if let (Some(first), Some(last)) = (import.leading.first(), last) {
+                out.push_str(text(first.span.start..last.span.end));
+            }
+            for &comment in &moved {
+                if let Some(prev) = last {
+                    let lines = if prev.span.end <= comment.span.start {
+                        line_breaks(text(prev.span.end..comment.span.start)).clamp(1, 2)
+                    } else {
+                        1
+                    };
+                    out.push_str(&"\n".repeat(lines));
+                }
+                out.push_str(text(comment.span.start..comment.span.end));
+                last = Some(comment);
+            }
+            // The import stays on the line of a single-line block comment that comes first.
+            let first = import.leading.first().unwrap_or(moved[0]);
+            let same_line = !first.is_line()
+                && !first.is_multiline_block()
+                && last.is_some_and(|last| !last.is_line());
+            out.push(if same_line { ' ' } else { '\n' });
+            moved_lines -= usize::from(same_line);
+        }
+        let decl_offset = out.len();
+        out.push_str(new_text);
+        out.push_str(text(import.decl_range.end..import.range.end));
+        (Cow::Owned(out), decl_offset, moved_lines)
+    };
 
     let mut out = String::with_capacity(source.len() + 2);
     out.push_str(&source[..bom_len]);
@@ -211,15 +314,17 @@ pub fn hoist_imports<'a>(
         };
         decl.specifiers.is_none() && comments_in(comments, prev_end, decl.span.start).is_empty()
     };
+    let mut info = ImportRewriteInfo::default();
     let mut prev_import: Option<(usize, u32)> = None;
-    for (idx, range) in imports {
+    for import in &imports {
+        let (idx, range) = (import.idx, import.range.clone());
         let separator = match prev_import {
             Some((prev_idx, prev_end)) => {
                 let between = text(prev_end..range.start);
                 if prev_idx + 1 != idx {
                     // Keeps the imports on non-adjacent lines, as they were in the source.
                     "\n\n"
-                } else if between.contains(is_line_terminator) {
+                } else if between.contains(is_line_terminator) && between.trim().is_empty() {
                     between
                 } else {
                     "\n"
@@ -238,8 +343,33 @@ pub fn hoist_imports<'a>(
             },
         };
         out.push_str(separator);
+        let prev_idx_before = prev_import.map(|(prev_idx, _)| prev_idx);
         prev_import = Some((idx, range.end));
-        out.push_str(text(range));
+        let (import_text, decl_offset, moved_lines) = import_text(import);
+        let decl_start = (out.len() + decl_offset) as u32;
+        if prev_idx_before.is_some_and(|prev_idx| prev_idx + 1 != idx) {
+            info.detached_import_starts.push(decl_start);
+        }
+        if let Some(Rewrite::Replace { split: Some(type_offset), .. }) =
+            rewrites.and_then(|rewrites| rewrites.get(idx))
+        {
+            info.split_import_starts.extend([decl_start, decl_start + *type_offset as u32]);
+        }
+        // The first import of the block keeps its own comments
+        // when the first import of the source is merged into another import or split.
+        let own_lines = if prev_idx_before.is_none() && idx != first_import_idx {
+            import
+                .leading
+                .iter()
+                .filter(|comment| has_line_break(source, comment.span.end, import.decl_range.start))
+                .count()
+        } else {
+            0
+        };
+        if moved_lines + own_lines > 0 {
+            info.moving_comments.push((decl_start, moved_lines + own_lines));
+        }
+        out.push_str(&import_text);
     }
 
     let mut rest = String::new();
@@ -261,7 +391,39 @@ pub fn hoist_imports<'a>(
         return None;
     }
     out.push('\n');
-    Some(allocator.alloc_str(&out))
+    Some(HoistedSource { source_text: allocator.alloc_str(&out), info })
+}
+
+/// The source rewritten by [`hoist_imports`].
+pub struct HoistedSource<'a> {
+    pub source_text: &'a str,
+    pub info: ImportRewriteInfo,
+}
+
+/// What the import sorting needs to know about a source rewritten by [`hoist_imports`].
+#[derive(Debug, Default)]
+pub struct ImportRewriteInfo {
+    /// Start offsets of the imports with comments on lines of their own directly above them
+    /// that move with them when they are the first import, and the number of those comments.
+    /// These are the comments from the imports merged into an import,
+    /// and the comments of the first import of the block when the first import of the source
+    /// is merged into another import or split.
+    pub moving_comments: Vec<(u32, usize)>,
+    /// Start offsets of the imports split from a value import with inline `type` specifiers.
+    pub split_import_starts: Vec<u32>,
+    /// Start offsets of the imports whose previous statement in the source is not the import before them.
+    pub detached_import_starts: Vec<u32>,
+}
+
+/// A top-level import written into the block at the top.
+struct HoistedImport<'c> {
+    /// Body index of the import.
+    idx: usize,
+    /// The import with the comments it owns.
+    range: Range<u32>,
+    decl_range: Range<u32>,
+    /// The comments it owns before it, below the comments that stay at the top.
+    leading: &'c [Comment],
 }
 
 /// The last part written before the imports.
@@ -276,17 +438,17 @@ enum Last {
 }
 
 /// The comments that start in `start..end`, which hold no statement.
-fn comments_in(comments: &[Comment], start: u32, end: u32) -> &[Comment] {
+pub(super) fn comments_in(comments: &[Comment], start: u32, end: u32) -> &[Comment] {
     let from = comments.partition_point(|comment| comment.span.start < start);
     let to = comments.partition_point(|comment| comment.span.start < end);
     &comments[from..to]
 }
 
-fn has_line_break(source: &str, start: u32, end: u32) -> bool {
+pub(super) fn has_line_break(source: &str, start: u32, end: u32) -> bool {
     source[start as usize..end as usize].contains(is_line_terminator)
 }
 
 /// Number of line breaks in `text`, counting `\r\n` once.
-fn line_breaks(text: &str) -> usize {
+pub(super) fn line_breaks(text: &str) -> usize {
     text.chars().filter(|&c| is_line_terminator(c)).count() - text.matches("\r\n").count()
 }

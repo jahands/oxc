@@ -3,7 +3,10 @@ use oxc_formatter_core::{FormatElement, SourceText};
 use oxc_span::{GetSpan, SourceType, Span};
 use rustc_hash::FxHashMap;
 
-use crate::{options::JsFormatOptions, utils::assignment_like::AssignmentLikeLayout};
+use crate::{
+    ir_transform::ImportRewriteInfo, options::JsFormatOptions,
+    utils::assignment_like::AssignmentLikeLayout,
+};
 
 use super::Comments;
 
@@ -103,6 +106,10 @@ pub struct JsFormatContext<'ast> {
     /// Set only for an embedded program (see [`crate::format_to_ir`]):
     /// its sole statement prints without its semicolon.
     embedding_omits_semicolon: bool,
+
+    // JHPATCH: Imports merged and split before formatting (sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+    /// What import sorting needs to know about the imports rewritten by [`crate::ir_transform::hoist_imports`].
+    import_rewrite_info: ImportRewriteInfo,
 }
 
 impl std::fmt::Debug for JsFormatContext<'_> {
@@ -148,6 +155,8 @@ impl<'ast> JsFormatContext<'ast> {
             quote_needed_stack: Vec::new(),
             tailwind_context_stack: Vec::new(),
             embedding_omits_semicolon: false,
+            // JHPATCH: Imports merged and split before formatting (sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+            import_rewrite_info: ImportRewriteInfo::default(),
         }
     }
 
@@ -239,6 +248,15 @@ impl<'ast> JsFormatContext<'ast> {
 
     pub(crate) fn embedding_omits_semicolon(&self) -> bool {
         self.embedding_omits_semicolon
+    }
+
+    // JHPATCH: Imports merged and split before formatting (sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+    pub(crate) fn set_import_rewrite_info(&mut self, info: ImportRewriteInfo) {
+        self.import_rewrite_info = info;
+    }
+
+    pub(crate) fn import_rewrite_info(&self) -> &ImportRewriteInfo {
+        &self.import_rewrite_info
     }
 
     /// Push a Tailwind context entry onto the stack.

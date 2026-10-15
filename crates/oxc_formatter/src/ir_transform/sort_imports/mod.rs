@@ -5,6 +5,8 @@ mod group_config;
 mod group_matcher;
 // JHPATCH: Import hoisting module (sortImports.hoist)
 mod hoist;
+// JHPATCH: Import merging and splitting module (sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+mod merge;
 pub mod options;
 mod partitioned_chunk;
 mod sortable_imports;
@@ -17,7 +19,9 @@ use oxc_formatter_core::format_element::{
 };
 
 // JHPATCH: Import hoisting entry point (sortImports.hoist)
-pub use hoist::hoist_imports;
+pub use hoist::{ImportRewriteInfo, hoist_imports};
+// JHPATCH: Import merging and splitting entry points (sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+pub use merge::{apply_import_rewrites, plan_import_rewrites};
 
 use crate::{
     JsLabels, SortImportsOptions,
@@ -50,11 +54,27 @@ pub fn sort_imports_chunk(
     formatter: &mut JsFormatter<'_, '_>,
     chunk_start: usize,
     position: ChunkPosition,
+    // JHPATCH: Start offsets of the imports in the chunk, to look up rewritten imports (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+    import_starts: &[u32],
 ) {
     let elements = &formatter.elements()[chunk_start..];
     let options = formatter.options().sort_imports.as_ref().unwrap();
+    // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+    let info = formatter.context().import_rewrite_info();
+    let rewritten: Vec<RewrittenImport> = import_starts
+        .iter()
+        .map(|start| RewrittenImport {
+            moving_comments: info
+                .moving_comments
+                .iter()
+                .find(|(moving_start, _)| moving_start == start)
+                .map_or(0, |(_, count)| *count),
+            is_split: info.split_import_starts.contains(start),
+            is_detached: info.detached_import_starts.contains(start),
+        })
+        .collect();
 
-    let sorted_elements = transform(elements, options, formatter.allocator(), position);
+    let sorted_elements = transform(elements, options, formatter.allocator(), position, &rewritten);
     formatter.replace_end(chunk_start, &sorted_elements);
 }
 
@@ -89,6 +109,8 @@ fn transform<'a>(
     allocator: &'a Allocator,
     // JHPATCH: Chunk position for the hoist comment rules (sortImports.hoist)
     position: ChunkPosition,
+    // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+    rewritten: &[RewrittenImport],
 ) -> ArenaVec<'a, FormatElement<'a>> {
     // Parse string based groups into our internal representation for performance
     let group_matcher = GroupMatcher::new(&options.groups, &options.custom_groups);
@@ -253,6 +275,17 @@ fn transform<'a>(
         ));
     }
 
+    // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+    let import_metadata = lines.iter_mut().filter_map(|line| match line {
+        SourceLine::Import(_, metadata) => Some(metadata),
+        _ => None,
+    });
+    for (metadata, rewritten) in import_metadata.zip(rewritten) {
+        metadata.moving_comments = rewritten.moving_comments;
+        metadata.is_split = rewritten.is_split;
+        metadata.is_detached = rewritten.is_detached;
+    }
+
     // Next, partition `SourceLine`s into `PartitionedChunk`s.
     //
     // Chunking is done by detecting boundaries.
@@ -361,9 +394,24 @@ fn transform<'a>(
                 // JHPATCH: Track comments kept at the top (sortImports.hoist)
                 let mut leading_orphan_ends_with_comment = false;
                 let mut has_top_comments = false;
+                // JHPATCH: Split imports have no source line (sortImports.splitTypeSpecifiers)
+                // An import split from a value import has no line in the source,
+                // so no blank line separates it from the comments kept at the top.
+                let first_is_split =
+                    options.hoist && sorted_imports.first().is_some_and(|first| first.is_split);
                 for orphan in &orphan_contents {
                     if orphan.after_slot.is_none() {
-                        for line in &orphan.lines {
+                        let lines = if first_is_split {
+                            let end = orphan
+                                .lines
+                                .iter()
+                                .rposition(|line| !matches!(line, SourceLine::Empty))
+                                .map_or(0, |idx| idx + 1);
+                            &orphan.lines[..end]
+                        } else {
+                            &orphan.lines[..]
+                        };
+                        for line in lines {
                             line.write(prev_elements, &mut next_elements, true);
                         }
                         // JHPATCH: Track comments kept at the top (sortImports.hoist)
@@ -379,10 +427,19 @@ fn transform<'a>(
                 // JHPATCH: Blank line between top comments and the first import's comments (sortImports.hoist)
                 // With `hoist`, comments kept at the top of the file are separated by a blank line
                 // from the comments of an import sorted to the front.
+                // JHPATCH: Only own comments count for the blank line below the top comments (sortImports.mergeDuplicates)
+                // The comments that hoist_imports moved above an import are not its own comments.
                 if has_top_comments
                     && position == ChunkPosition::FileStart
                     && leading_orphan_ends_with_comment
-                    && sorted_imports.first().is_some_and(|first| !first.leading_lines.is_empty())
+                    && sorted_imports.first().is_some_and(|first| {
+                        let comment_lines = first
+                            .leading_lines
+                            .iter()
+                            .filter(|line| matches!(line, SourceLine::CommentOnly(..)))
+                            .count();
+                        comment_lines > first.moving_comments
+                    })
                 {
                     next_elements.push(FormatElement::Line(LineMode::Empty));
                 }
@@ -428,8 +485,11 @@ fn transform<'a>(
                     // JHPATCH: Blank line after an import with a trailing comment (sortImports.hoist)
                     // With `hoist`, an import with a trailing comment is followed by a blank line
                     // when the next import did not start on the line right after it.
+                    // JHPATCH: Split imports have no source line (sortImports.splitTypeSpecifiers)
+                    // An import split from a value import has no line in the source, so it gets none.
                     let insert_newline = insert_newline
                         || (options.hoist
+                            && !sorted_import.is_split
                             && prev_import.is_some_and(|prev| {
                                 sorted_import.line_idx > prev_line_idx + 1
                                     && prev.has_trailing_comment
@@ -511,6 +571,18 @@ fn transform<'a>(
     next_elements.pop();
 
     next_elements
+}
+
+// JHPATCH: What the rewrite before formatting tells about an import (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+/// What [`hoist_imports`] tells about an import of a chunk.
+struct RewrittenImport {
+    /// Number of comments on lines of their own directly above the import that move with it
+    /// when it is the first import ([`ImportRewriteInfo::moving_comments`]).
+    moving_comments: usize,
+    /// Whether the import was split from a value import with inline `type` specifiers.
+    is_split: bool,
+    /// Whether the previous statement in the source is not the import before it.
+    is_detached: bool,
 }
 
 /// Resolve whether a blank line should be inserted between two group indices.
