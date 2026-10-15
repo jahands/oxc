@@ -1,0 +1,25 @@
+{
+	"scripts": {
+		"test": "vitest",
+		"posttest": "echo done",
+		"build": "tsc",
+		"prebuild": "rimraf dist",
+		"postbuild": "echo built",
+		"preinstall": "only-allow pnpm",
+		"postpublish": "echo published",
+		"prefoo": "echo prefoo",
+		"pretest": "lint",
+		"dev": "vite",
+		"Zed": "z",
+		"_internal": "x",
+		"prepare": "husky",
+		"prepublishOnly": "pnpm build",
+		"lint:fix": "eslint --fix",
+		"lint": "eslint"
+	},
+	"betterScripts": {
+		"start": { "command": "node index.js" },
+		"build": "tsc",
+		"prestart": "echo"
+	}
+}

@@ -1,0 +1,24 @@
+{
+  "imports": {
+    "#z": "./z.js",
+    "#a": "./a.js"
+  },
+  "exports": {
+    "./sub": {
+      "types@<5.0": "./dist/ts4/sub.d.ts",
+      "types": "./dist/sub.d.ts",
+      "node": {
+        "types": "./dist/sub.node.d.ts",
+        "import": "./dist/sub.node.mjs",
+        "default": "./dist/sub.node.js"
+      },
+      "default": "./dist/sub.js"
+    },
+    ".": "./dist/index.js",
+    "./package.json": "./package.json",
+    "types": "./dist/index.d.ts",
+    "import": "./dist/index.mjs",
+    "require": "./dist/index.cjs",
+    "default": "./dist/index.js"
+  }
+}

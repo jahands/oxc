@@ -1,0 +1,17 @@
+{
+	"exports": {
+		"default": "./dist/index.js",
+		"./sub": {
+			"default": "./dist/sub.js",
+			"node": { "default": "./dist/sub.node.js", "import": "./dist/sub.node.mjs", "types": "./dist/sub.node.d.ts" },
+			"types@<5.0": "./dist/ts4/sub.d.ts",
+			"types": "./dist/sub.d.ts"
+		},
+		"import": "./dist/index.mjs",
+		".": "./dist/index.js",
+		"types": "./dist/index.d.ts",
+		"./package.json": "./package.json",
+		"require": "./dist/index.cjs"
+	},
+	"imports": { "#z": "./z.js", "#a": "./a.js" }
+}

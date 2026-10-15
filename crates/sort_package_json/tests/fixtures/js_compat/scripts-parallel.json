@@ -1,0 +1,10 @@
+{
+	"scripts": {
+		"test": "vitest",
+		"build:b": "tsc -p b",
+		"build:a": "tsc -p a",
+		"build": "npm-run-all --parallel build:*",
+		"lint": "eslint"
+	},
+	"devDependencies": { "npm-run-all": "4.1.5" }
+}

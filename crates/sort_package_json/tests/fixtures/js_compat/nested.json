@@ -1,0 +1,42 @@
+{
+	"publishConfig": { "tag": "next", "access": "public", "main": "dist/index.js", "registry": "https://r" },
+	"license": { "url": "https://l", "type": "MIT" },
+	"funding": { "url": "https://f", "type": "github" },
+	"bugs": { "email": "a@b.c", "url": "https://b" },
+	"author": { "url": "https://a", "email": "a@b.c", "name": "A" },
+	"maintainers": [{ "url": "https://m", "name": "M" }, "Plain <p@q.r>"],
+	"contributors": [{ "email": "c@d.e", "name": "C" }],
+	"workspaces": { "nohoist": ["x"], "catalog": { "react": "19", "React": "1", "@a/b": "1" }, "packages": ["packages/*", "apps/*", "packages/*"], "catalogs": { "b": {}, "a": {} } },
+	"dependenciesMeta": { "foo@2.0.0": { "injected": true, "built": false }, "bar": { "unplugged": true }, "foo@1.0.0": { "injected": true }, "@scope/pkg@1.0.0": { "optional": true }, "@scope/pkg": {} },
+	"peerDependenciesMeta": { "z": { "optional": true, "b": { "z": 1, "a": 2 } }, "a": { "optional": true } },
+	"husky": { "hooks": { "pre-push": "test", "custom": "x", "commit-msg": "commitlint", "pre-commit": "lint-staged" }, "skipCI": true },
+	"simple-git-hooks": { "pre-push": "test", "commit-msg": "x", "pre-commit": "lint-staged", "preserveUnused": true },
+	"prettier": { "semi": false, "overrides": [{ "options": { "parser": "json", "tabWidth": 4 }, "files": "*.json" }], "arrowParens": "avoid", "Zed": 1 },
+	"eslintConfig": {
+		"rules": { "z": "off", "plugin/b": "warn", "a": "error", "plugin/a": "error", "x/y/z": "off", "B": "off" },
+		"zzz": true,
+		"overrides": [{ "rules": { "b": 1, "a/b": 1, "a": 1 }, "files": ["*.ts"], "env": { "node": true } }],
+		"env": { "node": true, "browser": true },
+		"globals": { "b": "readonly", "a": "readonly" },
+		"extends": ["x"],
+		"settings": { "z": 1, "a": { "y": 1, "b": 2 } },
+		"parserOptions": { "sourceType": "module", "ecmaVersion": 2024 },
+		"root": true
+	},
+	"config": { "b": { "z": 1, "a": 2 }, "a": 1 },
+	"jest": { "testMatch": ["x"], "moduleNameMapper": { "z": "1", "a": "2" }, "collectCoverage": true },
+	"oclif": { "commands": "./dist", "bin": "x", "topics": { "z": { "description": "z" }, "a": { "description": "a" } } },
+	"lint-staged": { "*.ts": "eslint", "*.js": "eslint" },
+	"pnpm": {
+		"overrides": { "foo@^2.0.0": "2", "foo": "0", "foo@1.0.0-beta": "1", "foo@1.0.0": "1", "bar@1>baz": "1", "@scope/x@>=1 <2": "1", "@scope/x": "1", "Bar": "1" },
+		"zeta": { "patchedDependencies": 1, "overrides": 2, "a": 3 },
+		"patchedDependencies": { "z@1": "p", "a@1": "p" },
+		"onlyBuiltDependencies": ["esbuild"],
+		"peerDependencyRules": { "allowedVersions": {}, "ignoreMissing": [] }
+	},
+	"volta": { "yarn": "1", "extends": "../package.json", "node": "22", "npm": "10" },
+	"binary": { "host": "h", "module_name": "m", "zz": 1, "module_path": "p" },
+	"directories": { "test": "t", "man": "m", "doc": "d", "lib": "l", "example": "e", "bin": "b", "zz": "z" },
+	"engines": { "pnpm": "10", "node": "22" },
+	"bin": "./cli.js"
+}

@@ -67,6 +67,7 @@ export type ImportSelectorConfig =
 export type SortGroupItemConfig = NewlinesBetweenMarker | string | string[];
 export type SortOrderConfig = "asc" | "desc";
 export type SortPackageJsonUserConfig = boolean | SortPackageJsonConfig;
+export type SortPackageJsonOrderConfig = "oxfmt" | "sort-package-json";
 export type SortTailwindcssUserConfig = boolean | SortTailwindcssConfig;
 export type SvelteUserConfig = boolean | SvelteConfig;
 export type TrailingCommaConfig = "all" | "es5" | "none";
@@ -284,8 +285,9 @@ export interface Oxfmtrc {
   /**
    * Sort `package.json` keys.
    *
-   * The order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),
+   * The default order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),
    * but we believe it is clearer and easier to navigate.
+   * Set `order` to `"sort-package-json"` for the order prettier-plugin-packagejson produces.
    *
    * - Languages: JSON (`package.json` only)
    * - Default: `true`
@@ -668,8 +670,9 @@ export interface FormatConfig {
   /**
    * Sort `package.json` keys.
    *
-   * The order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),
+   * The default order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),
    * but we believe it is clearer and easier to navigate.
+   * Set `order` to `"sort-package-json"` for the order prettier-plugin-packagejson produces.
    *
    * - Languages: JSON (`package.json` only)
    * - Default: `true`
@@ -890,6 +893,18 @@ export interface NewlinesBetweenMarker {
   [k: string]: unknown;
 }
 export interface SortPackageJsonConfig {
+  /**
+   * The field order and nested sorting rules.
+   *
+   * - `"oxfmt"`: Oxfmt's own order.
+   * - `"sort-package-json"`: the order of the [sort-package-json](https://github.com/keithamus/sort-package-json) npm package 3.5.0,
+   * which prettier-plugin-packagejson uses. `sortScripts` has no effect:
+   * `scripts` are sorted with `pre<name>` and `post<name>` next to `<name>`,
+   * unless an `npm-run-all` script runs a glob sequentially.
+   *
+   * - Default: `"oxfmt"`
+   */
+  order?: SortPackageJsonOrderConfig;
   /**
    * Sort the `scripts` field alphabetically.
    *

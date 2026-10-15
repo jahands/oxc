@@ -1,0 +1,64 @@
+{
+  "resolutions": {
+    "B": "1",
+    "a": "1",
+    "b": "1"
+  },
+  "overrides": {
+    "baz": "1",
+    "Baz": "1",
+    "foo": {
+      "bar": "1",
+      ".": "2"
+    }
+  },
+  "dependencies": {
+    "@repo-two/a": "workspace:*",
+    "@repo/zod": "workspace:*",
+    "@repo/Zod": "workspace:*",
+    "@types/react": "19.0.0",
+    "~tilde": "1",
+    "$dollar": "1",
+    "a1": "1",
+    "a10": "1",
+    "a2": "1",
+    "ab": "1",
+    "aB": "1",
+    "Ab": "1",
+    "lodash": "4.0.0",
+    "Lodash": "4.0.0",
+    "lodash_es": "4.0.0",
+    "lodash-es": "4.0.0",
+    "lodash.merge": "4.0.0",
+    "react": "19.0.0",
+    "React": "0.0.1",
+    "react_dom": "0.0.1",
+    "react-dom": "19.0.0",
+    "react.dom": "0.0.1",
+    "reactdom": "0.0.1"
+  },
+  "devDependencies": {
+    "z_z": "1",
+    "z-z": "1",
+    "zz": "1",
+    "Zz": "1"
+  },
+  "peerDependencies": {
+    "a": "1",
+    "b": "1",
+    "B": "1"
+  },
+  "optionalDependencies": {
+    "@esbuild/Linux-arm64": "1",
+    "@esbuild/linux-x64": "1",
+    "fsevents": "1"
+  },
+  "bundledDependencies": [
+    "a",
+    "b"
+  ],
+  "bundleDependencies": [
+    "c",
+    "d"
+  ]
+}
