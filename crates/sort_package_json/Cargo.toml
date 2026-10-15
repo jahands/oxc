@@ -61,3 +61,6 @@ harness = false
 
 [features]
 codspeed = ["criterion2/codspeed"]
+
+[lib]
+test = false
