@@ -38,4 +38,7 @@ pub enum JsEmbeddedIn {
     /// A Markdown code block (js-in-markdown):
     /// a program of a single JSX expression statement prints without its semicolon.
     MarkdownCodeBlock,
+    /// An MDX ESM block (`import` / `export` lines):
+    /// a program with any other statement is rejected, so the host keeps the block as-is.
+    MdxEsm,
 }

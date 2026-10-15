@@ -312,6 +312,26 @@
 - [externals/prettier/markdown/thematicBreak/simple.md](diffs/markdown/externals__prettier__markdown__thematicBreak__simple.md.md)
   - crates/oxc_formatter_markdown/DIVERGENCES.md#leading-thematic-break
 
+## mdx
+
+### Option 1: 19/20 (95.00%)
+
+```json
+{"printWidth":80}
+```
+
+- [edge-cases/mdx/multiline-comment.mdx](diffs/mdx/edge-cases__mdx__multiline-comment.mdx.md)
+  - apps/oxfmt/DIVERGENCES.md#mdx-multiline-comment
+
+### Option 2: 19/20 (95.00%)
+
+```json
+{"printWidth":100,"proseWrap":"always"}
+```
+
+- [edge-cases/mdx/multiline-comment.mdx](diffs/mdx/edge-cases__mdx__multiline-comment.mdx.md)
+  - apps/oxfmt/DIVERGENCES.md#mdx-multiline-comment
+
 ## markdown-mdn
 
 ### Option 1: 360/362 (99.45%)

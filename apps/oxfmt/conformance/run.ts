@@ -205,6 +205,14 @@ const categories: Category[] = [
     optionSets: [{ printWidth: 80 }, { printWidth: 100, proseWrap: "always" }],
   },
   {
+    name: "mdx",
+    sources: [
+      { dir: join(EXTERNALS_DIR, "prettier", "mdx"), ext: ".mdx" },
+      { dir: join(FIXTURES_DIR, "edge-cases", "mdx") },
+    ],
+    optionSets: [{ printWidth: 80 }, { printWidth: 100, proseWrap: "always" }],
+  },
+  {
     // Real-world documents, dense with fenced code (css / html / js)
     name: "markdown-mdn",
     sources: [

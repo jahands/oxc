@@ -1,0 +1,4 @@
+{
+  "sortImports": true,
+  "overrides": [{ "files": ["*.mdx"], "options": { "sortImports": false } }]
+}

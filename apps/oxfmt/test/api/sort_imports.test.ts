@@ -92,3 +92,71 @@ import { b, c } from "c";
     expect(result.errors).toStrictEqual([]);
   });
 });
+
+describe("Sort imports in MDX", () => {
+  const input = `import { z } from "zod";
+import { a } from "a";
+
+# Title
+
+\`\`\`js
+import { y } from "y";
+import { b } from "b";
+\`\`\`
+
+import { d } from "d";
+import { c } from "c";
+export const meta = { title: "x" };
+`;
+
+  it("should sort each ESM block and code block", async () => {
+    const result = await format("a.mdx", input, { sortImports: true });
+
+    expect(result.code).toBe(
+      `import { a } from "a";
+import { z } from "zod";
+
+# Title
+
+\`\`\`js
+import { b } from "b";
+import { y } from "y";
+\`\`\`
+
+import { c } from "c";
+import { d } from "d";
+export const meta = { title: "x" };
+`,
+    );
+    expect(result.errors).toStrictEqual([]);
+  });
+
+  it("should not sort when sortImports is disabled", async () => {
+    const result = await format("a.mdx", input);
+
+    expect(result.code).toBe(input);
+    expect(result.errors).toStrictEqual([]);
+  });
+
+  it("should keep a block with other statements as-is, like Prettier", async () => {
+    const block = `import { z } from "zod";
+import   { a } from "a";
+export *   from "./all";
+`;
+    const result = await format("a.mdx", block, { sortImports: true });
+
+    expect(result.code).toBe(block);
+    expect(result.errors).toStrictEqual([]);
+  });
+
+  it("should not add ; for single JSX element in code block", async () => {
+    const block = `\`\`\`jsx
+<div>Hello, JSX</div>
+\`\`\`
+`;
+    const result = await format("a.mdx", block, { sortImports: true });
+
+    expect(result.code).toBe(block);
+    expect(result.errors).toStrictEqual([]);
+  });
+});

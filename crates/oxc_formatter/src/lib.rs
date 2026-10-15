@@ -133,16 +133,7 @@ pub fn format_to_ir<'a>(
     let node = AstNode::new(program, AstNodes::Dummy(), allocator);
     let mut context =
         JsFormatContext::new(program.source_text, program.source_type, &program.comments, options);
-
-    // Special cases for js-in-xxx:
-    // - Single JSX in Markdown code block: omit the semicolon
-    let embedding_omits_semicolon = embedded_in == Some(JsEmbeddedIn::MarkdownCodeBlock)
-        && program.directives.is_empty()
-        && matches!(
-            program.body.as_slice(),
-            [Statement::ExpressionStatement(statement)] if statement.expression.is_jsx()
-        );
-    context.set_embedding_omits_semicolon(embedding_omits_semicolon);
+    context.set_embedding_omits_semicolon(embedding_omits_semicolon(program, embedded_in));
 
     let (ir, _) = formatter::build_ir(
         context,
@@ -152,6 +143,60 @@ pub fn format_to_ir<'a>(
         )]),
     );
     Ok(EmbeddedIr { ir })
+}
+
+/// Like [`format_with_session`], for a program embedded in a document whose host builds the final output,
+/// e.g. a code block in MDX formatted by Prettier.
+///
+/// `embedded_in` is what the program is embedded in, for the print rules that depend on it ([`JsEmbeddedIn`]).
+///
+/// # Errors
+/// Same as [`format()`].
+pub fn format_embedded_with_session<'a>(
+    session: &FormatSession<'a>,
+    source_text: &'a str,
+    source_type: SourceType,
+    options: JsFormatOptions,
+    embedded_in: Option<JsEmbeddedIn>,
+) -> Result<Formatted<'a, JsFormatContext<'a>>, OxcDiagnostic> {
+    let program = parse(session.allocator(), source_text, source_type)?;
+    if embedded_in == Some(JsEmbeddedIn::MdxEsm) && !program.body.iter().all(is_mdx_esm_statement) {
+        return Err(OxcDiagnostic::error("Only import/export declarations are allowed in MDX ESM"));
+    }
+
+    let node = AstNode::new(program, AstNodes::Dummy(), session.allocator());
+    let mut context =
+        JsFormatContext::new(program.source_text, program.source_type, &program.comments, options);
+    context.set_embedding_omits_semicolon(embedding_omits_semicolon(program, embedded_in));
+
+    Ok(formatter::format(
+        context,
+        session,
+        oxc_formatter_core::Arguments::new(&[oxc_formatter_core::Argument::new(&node)]),
+    ))
+}
+
+/// Statements Prettier accepts in an MDX ESM block; `export * from` is not one of them.
+fn is_mdx_esm_statement(statement: &Statement<'_>) -> bool {
+    match statement {
+        Statement::ImportDeclaration(_)
+        | Statement::ExportDeclaration(_)
+        | Statement::ExportNamedDeclaration(_)
+        | Statement::ExportFromDeclaration(_)
+        | Statement::ExportDefaultDeclaration(_) => true,
+        Statement::ExportAllDeclaration(decl) => decl.exported.is_some(),
+        _ => false,
+    }
+}
+
+/// Special case for js-in-xxx: a single JSX expression statement in a Markdown code block prints without its semicolon.
+fn embedding_omits_semicolon(program: &Program<'_>, embedded_in: Option<JsEmbeddedIn>) -> bool {
+    embedded_in == Some(JsEmbeddedIn::MarkdownCodeBlock)
+        && program.directives.is_empty()
+        && matches!(
+            program.body.as_slice(),
+            [Statement::ExpressionStatement(statement)] if statement.expression.is_jsx()
+        )
 }
 
 /// Format a pre-wrapped JS/TS-in-xxx fragment from source text.

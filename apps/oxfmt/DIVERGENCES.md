@@ -275,3 +275,33 @@ Prettier keeps `json` / `json5` blocks as written: their parser rejects a blank 
 `prettier-plugin-astro` formats it with bundled `sass-formatter`, which we do not bundle (patched out).
 Rare in Astro projects (GitHub code search, 2026-10: about 350 files in 72 repos, vs 29k for `lang="scss"`).
 Not tested but `oxc-css-parser` already parses it, so we can add Sass support for `oxc_formatter_css` in the future.
+
+## mdx-multiline-comment
+
+- Why: semantics (prettier/prettier#17700)
+- Pin: `conformance/fixtures/edge-cases/mdx/multiline-comment.mdx`
+
+```mdx
+{/* input */}
+{/*
+  multi line
+  comment
+*/}
+
+{/* ours */}
+{/*
+  multi line
+  comment
+*/}
+
+{/* prettier */}
+{/_
+multi line
+comment
+_/}
+```
+
+Prettier's `mdx` parser recognizes `{/* */}` only when the comment body is on one line.
+A multi-line one becomes a paragraph, so `*` is printed as `_` and the result is no longer a comment:
+`@mdx-js/mdx` 3 fails to compile it ("Could not parse expression with acorn").
+We keep the paragraphs a multi-line comment spans as-is (`src-js/libs/prettier-plugin-mdx.ts`).
