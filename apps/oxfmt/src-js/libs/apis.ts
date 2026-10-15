@@ -24,9 +24,11 @@ const CACHES = {
   tailwindPlugin: null as typeof import("prettier-plugin-tailwindcss") | null,
   tailwindSorter: null as typeof import("prettier-plugin-tailwindcss/sorter") | null,
   oxfmtPlugin: null as Plugin | null,
+  // JHPATCH: Cache the MDX comment plugin (DIVERGENCES.md#mdx-multiline-comment)
   mdxPlugin: null as Plugin | null,
 };
 
+// JHPATCH: Cache the project's prettier-plugin-astro per directory (astro.useProjectPlugin)
 // `prettier-plugin-astro` installed in the project, keyed by the directory it is resolved from
 const PROJECT_ASTRO_PLUGINS = new Map<string, Plugin>();
 
@@ -100,6 +102,7 @@ export async function formatFile({ code, options }: FormatFileParam): Promise<st
   if ("_useTailwindPlugin" in options) await setupTailwindPlugin(options);
   // This plugin overrides `babel(-ts)` and `typescript` parsers to use `oxc_formatter` instead of built-in parsers
   if ("_oxfmtPluginOptionsJson" in options) await setupOxfmtPlugin(options);
+  // JHPATCH: Keep multi-line MDX comments verbatim (DIVERGENCES.md#mdx-multiline-comment)
   // This plugin overrides the `mdx` parser to keep multi-line comments verbatim
   if (options.parser === "mdx") await setupMdxPlugin(options);
 
@@ -110,6 +113,7 @@ export async function formatFile({ code, options }: FormatFileParam): Promise<st
     options._oxfmtVueScriptLang = "tsx";
   }
 
+  // JHPATCH: Reset PRETTIER_DEBUG, which the unpatched project prettier-plugin-astro leaves set (astro.useProjectPlugin)
   return withPrettierDebugRestored(() => prettier.format(code, options));
 }
 
@@ -191,6 +195,7 @@ export async function formatEmbeddedDoc({
   if ("_useAstroPlugin" in options) await setupAstroPlugin(options);
   // Enable Tailwind CSS plugin for embedded code (e.g., html`...` in JS) if needed
   if ("_useTailwindPlugin" in options) await setupTailwindPlugin(options);
+  // JHPATCH: Keep multi-line MDX comments verbatim in Markdown mdx code blocks (DIVERGENCES.md#mdx-multiline-comment)
   // Keep multi-line comments verbatim in ` ```mdx ` code blocks in Markdown
   if (options.parser === "mdx") await setupMdxPlugin(options);
 
@@ -211,6 +216,7 @@ export async function formatEmbeddedDoc({
   // - Specified parser is not available
   // - Or, code has syntax errors
   // In such cases, Rust side will fallback to original code
+  // JHPATCH: Reset PRETTIER_DEBUG, which the unpatched project prettier-plugin-astro leaves set (astro.useProjectPlugin)
   const doc = await withPrettierDebugRestored(
     // @ts-expect-error: Use internal API, but it's necessary and only way to get `Doc`
     () => prettier.__debug.printToDoc(code, options),
@@ -307,6 +313,7 @@ async function setupSveltePlugin(options: Options): Promise<void> {
 // Astro plugin support
 // ---
 
+// JHPATCH: Load the project's prettier-plugin-astro instead of the bundled one (astro.useProjectPlugin)
 /**
  * Load prettier-plugin-astro to provide the `astro` parser.
  * `_astroProjectPluginDir` (`astro.useProjectPlugin`) selects the project's plugin over the bundled one.
@@ -324,6 +331,7 @@ async function setupAstroPlugin(options: Options): Promise<void> {
   options.plugins.push(plugin);
 }
 
+// JHPATCH: Resolve prettier-plugin-astro from the project directory (astro.useProjectPlugin)
 async function loadProjectAstroPlugin(dir: string): Promise<Plugin> {
   const cached = PROJECT_ASTRO_PLUGINS.get(dir);
   if (cached) return cached;
@@ -343,6 +351,7 @@ async function loadProjectAstroPlugin(dir: string): Promise<Plugin> {
   return plugin;
 }
 
+// JHPATCH: Restore PRETTIER_DEBUG after the unpatched project prettier-plugin-astro sets it (astro.useProjectPlugin)
 /**
  * Run `fn` and restore `process.env.PRETTIER_DEBUG` afterwards.
  * `prettier-plugin-astro` sets it on an embed error and never resets it,
@@ -375,6 +384,7 @@ async function setupOxfmtPlugin(options: Options): Promise<void> {
   options.plugins.push(CACHES.oxfmtPlugin);
 }
 
+// JHPATCH: Load the plugin that keeps multi-line MDX comments verbatim (DIVERGENCES.md#mdx-multiline-comment)
 // ---
 // MDX comment support
 // ---

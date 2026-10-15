@@ -60,6 +60,7 @@ pub struct JsFormatOptions {
     /// - `true` - Use curious ternaries, with the question mark after the condition.
     /// - `false` - Retain the default behavior of ternaries; keep question marks on the same line as the consequent.
     pub experimental_ternaries: bool,
+    // JHPATCH: prettierCompat option
     /// Follow a newer Prettier version's output where the formatter keeps an earlier Prettier style.
     /// Defaults to None (the formatter's own style).
     pub prettier_compat: Option<PrettierCompat>,
@@ -226,6 +227,7 @@ impl fmt::Display for JsFormatOptions {
         writeln!(f, "Attribute Position: {}", self.attribute_position)?;
         writeln!(f, "Expand lists: {}", self.expand)?;
         writeln!(f, "Operator position: {}", self.operator_position)?;
+        // JHPATCH: prettierCompat option
         writeln!(f, "Prettier compat: {:?}", self.prettier_compat)?;
         writeln!(f, "Sort imports: {:?}", self.sort_imports)?;
         writeln!(f, "Sort tailwindcss: {:?}", self.sort_tailwindcss)?;
@@ -652,6 +654,7 @@ impl FromStr for BracketSameLine {
     }
 }
 
+// JHPATCH: prettierCompat values
 /// The Prettier version whose output is followed over the formatter's style holds
 /// (`DIVERGENCES.md` entries with `Why: style-hold`).
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

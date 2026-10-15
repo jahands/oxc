@@ -10,6 +10,7 @@
 //! # Ok::<(), serde_json::Error>(())
 //! ```
 
+// JHPATCH: sort-package-json npm package order (sortPackageJson.preset)
 mod js_compat;
 mod value;
 
@@ -28,10 +29,12 @@ pub struct SortOptions {
     pub pretty: bool,
     /// Whether to sort the scripts field alphabetically.
     pub sort_scripts: bool,
+    // JHPATCH: SortOrder option for the sort-package-json npm package order (sortPackageJson.preset)
     /// The field order and nested sorting rules.
     pub order: SortOrder,
 }
 
+// JHPATCH: SortOrder for the sort-package-json npm package order (sortPackageJson.preset)
 /// The field order and nested sorting rules applied by [`sort_package_json_with_options`].
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
 #[non_exhaustive]
@@ -52,6 +55,7 @@ impl SortOptions {
     /// Creates options with the default behavior.
     #[must_use]
     pub const fn new() -> Self {
+        // JHPATCH: Default SortOrder (sortPackageJson.preset)
         Self { pretty: true, sort_scripts: false, order: SortOrder::Default }
     }
 
@@ -69,6 +73,7 @@ impl SortOptions {
         self
     }
 
+    // JHPATCH: SortOrder setter (sortPackageJson.preset)
     /// Sets the field order and nested sorting rules.
     #[must_use]
     pub const fn with_order(mut self, order: SortOrder) -> Self {
@@ -101,6 +106,7 @@ pub fn sort_package_json_with_options(
     let value: Value<'_> = serde_json::from_str(body)?;
 
     let sorted = match value {
+        // JHPATCH: Dispatch on SortOrder (sortPackageJson.preset)
         Value::Object(obj) => Value::Object(match options.order {
             SortOrder::Default => sort_object_keys(obj, options),
             SortOrder::SortPackageJson => js_compat::sort_package_json(obj),

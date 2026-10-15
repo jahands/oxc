@@ -1,3 +1,4 @@
+// JHPATCH: Intl-compatible import collation (sortImports.collation) to match @ianvs/prettier-plugin-sort-imports
 use std::{borrow::Cow, cmp::Ordering, iter::Peekable, str::CharIndices};
 
 use cow_utils::CowUtils;

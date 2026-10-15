@@ -59,6 +59,7 @@ impl<'a> SourceLine<'a> {
         let mut seen_from_keyword = false;
 
         let import_label = LabelId::of(JsLabels::ImportDeclaration);
+        // JHPATCH: Read suppressed imports as imports that keep their position (sortImports.partitionBySideEffect)
         let suppressed_import_label = LabelId::of(JsLabels::SuppressedImportDeclaration);
         for idx in range.clone() {
             let element = &elements[idx];
@@ -67,6 +68,7 @@ impl<'a> SourceLine<'a> {
             if let FormatElement::Tag(Tag::StartLabelled(id)) = element {
                 if *id == import_label {
                     has_import = true;
+                // JHPATCH: Suppressed import line metadata (sortImports.partitionBySideEffect)
                 } else if *id == suppressed_import_label {
                     return SourceLine::Import(
                         range.clone(),
@@ -151,6 +153,7 @@ impl<'a> SourceLine<'a> {
         }
 
         SourceLine::Import(
+            // JHPATCH: Suppression and trailing comment metadata (sortImports.partitionBySideEffect, sortImports.hoist)
             range.clone(),
             ImportLineMetadata {
                 source: source.expect("`ImportDeclaration` must have a source"),
@@ -201,6 +204,7 @@ impl<'a> SourceLine<'a> {
 pub struct ImportLineMetadata<'a> {
     /// Index of the import source in the original `elements` slice.
     pub source: &'a str,
+    // JHPATCH: Suppression and trailing comment metadata (sortImports.partitionBySideEffect, sortImports.hoist)
     /// Whether this import is suppressed (`prettier-ignore` / `oxfmt-ignore`) and printed verbatim.
     /// The fields other than `has_trailing_comment` are not computed for it.
     pub is_suppressed: bool,
@@ -218,6 +222,7 @@ pub struct ImportLineMetadata<'a> {
     pub has_named_specifier: bool,
 }
 
+// JHPATCH: Trailing comment detection (sortImports.partitionBySideEffect, sortImports.hoist)
 /// Whether a comment follows the import in `elements[range]`, a line that holds an import.
 fn has_comment_after_import(elements: &[FormatElement<'_>], range: Range<usize>) -> bool {
     let import_label = LabelId::of(JsLabels::ImportDeclaration);

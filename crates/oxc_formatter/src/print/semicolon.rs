@@ -287,6 +287,7 @@ pub fn write_suppressed_statement<'a>(
         AstNodes::ExpressionStatement(stmt) => write_leading_comments_with_asi_guard(stmt, true, f),
         _ => format_leading_comments(span).fmt(f),
     }
+    // JHPATCH: Label suppressed imports so sort_imports keeps them in place (sortImports.partitionBySideEffect)
     let content = format_with(|f| {
         if write_suppressed_content(span, suppressed_statement_content_end(stmt.as_ref(), f), f) {
             OptionalSemicolon.fmt(f);

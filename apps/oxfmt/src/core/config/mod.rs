@@ -252,6 +252,7 @@ pub fn resolve_for_api(
     let mut format_config: FormatConfig =
         serde_json::from_value(raw_config).map_err(|err| err.to_string())?;
     format_config.resolve_tailwind_paths(cwd);
+    // JHPATCH: Resolve prettier-plugin-astro from the cwd for the Node.js API (astro.useProjectPlugin)
     format_config.resolve_astro_plugin_dir(cwd);
     // Validate eagerly, as the single gate for every option (core + js/sortImports):
     // downstream mapping consumes the derived artifacts and cannot re-fail,
@@ -395,6 +396,7 @@ impl ConfigResolver {
 
         if let Some(config_dir) = &self.config_dir {
             format_config.resolve_tailwind_paths(config_dir);
+            // JHPATCH: Resolve prettier-plugin-astro from the config directory (astro.useProjectPlugin)
             format_config.resolve_astro_plugin_dir(config_dir);
         }
 
@@ -487,6 +489,7 @@ impl ConfigResolver {
 
         if let Some(config_dir) = &self.config_dir {
             format_config.resolve_tailwind_paths(config_dir);
+            // JHPATCH: Resolve prettier-plugin-astro from the config directory (astro.useProjectPlugin)
             format_config.resolve_astro_plugin_dir(config_dir);
         }
 

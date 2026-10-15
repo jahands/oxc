@@ -109,6 +109,7 @@ impl<'a> Format<'a, JsFormatContext<'a>> for ChainMember<'a, '_> {
                         [
                             expression.optional().then_some("?."),
                             expression.type_arguments(),
+                            // JHPATCH: Do not hug a sole multiline template in a non-head member chain call, as Prettier does
                             FormatChainLinkArguments(expression.arguments())
                         ]
                     );

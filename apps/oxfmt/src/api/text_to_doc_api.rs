@@ -76,6 +76,7 @@ pub fn run(
         "vue-for-binding-left" => Some(FragmentKind::VueForBindingLeft),
         "vue-bindings" => Some(FragmentKind::VueBindings),
         "vue-script-generic" => Some(FragmentKind::VueScriptGeneric),
+        // JHPATCH: MDX parent contexts (sortImports in MDX)
         // "vue-script" | "svelte-script" | "astro" | "mdx" | "mdx-esm"
         _ => None,
     };
@@ -87,6 +88,7 @@ pub fn run(
             source_type,
             source_text,
             oxfmt_plugin_options_json,
+            // JHPATCH: Pass the parent context to pick the MDX embedding (sortImports in MDX)
             parent_context,
             format_file_cb,
             format_embedded_cb,
@@ -116,6 +118,7 @@ fn run_full(
     source_type: SourceType,
     source_text: &str,
     oxfmt_plugin_options_json: &str,
+    // JHPATCH: Parent context that selects the MDX embedding (sortImports in MDX)
     parent_context: &str,
     format_file_cb: JsFormatFileCb,
     format_embedded_cb: JsFormatEmbeddedCb,
@@ -150,6 +153,7 @@ fn run_full(
         InputKind::VirtualDocument,
         services,
     );
+    // JHPATCH: Format MDX ESM blocks and code blocks as embedded programs (sortImports in MDX)
     let embedded_in = match parent_context {
         "mdx" => Some(JsEmbeddedIn::MarkdownCodeBlock),
         "mdx-esm" => Some(JsEmbeddedIn::MdxEsm),

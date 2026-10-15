@@ -1,3 +1,4 @@
+// JHPATCH: sort-package-json npm package order (sortPackageJson.preset: "sort-package-json")
 //! The field order and nested sorting of the npm package
 //! [`sort-package-json`](https://github.com/keithamus/sort-package-json) 3.5.0
 //! (<https://github.com/keithamus/sort-package-json/blob/v3.5.0/index.js>).

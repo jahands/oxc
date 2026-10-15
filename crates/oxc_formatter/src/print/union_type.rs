@@ -1,3 +1,4 @@
+// JHPATCH: Module doc notes that prettierCompat opts into Prettier 3.9's union layout
 //! NOTE: This printer deliberately stays on Prettier 3.8-style expansion (one member per line with leading `|`)
 //! and will probably NOT follow Prettier 3.9's fit-to-width rewrite
 //! (prettier#18827: collapse when it fits, conditional-type `? |` hugging) by default;
@@ -178,6 +179,7 @@ impl<'a> FormatWrite<'a> for AstNode<'a, TSUnionType<'a>> {
             _ => false,
         };
 
+        // JHPATCH: Prettier 3.9 union layout (prettierCompat: "3.9")
         // Prettier 3.9 (prettier#18827): the members get a group of their own, so a union that breaks out of its position
         // first retries flat on the indented next line, and a conditional-type branch carries no indent of its own.
         let fits_on_next_line = matches!(f.options().prettier_compat, Some(PrettierCompat::V3_9));
@@ -204,12 +206,14 @@ impl<'a> FormatWrite<'a> for AstNode<'a, TSUnionType<'a>> {
                 | AstNodes::TSTypeParameterInstantiation(_) => false,
                 // A check/extends-position union falls through to `_ => true`
                 AstNodes::TSConditionalType(_) if is_conditional_branch => {
+                    // JHPATCH: Prettier 3.9 union layout (prettierCompat: "3.9")
                     !fits_on_next_line && before_pipe_comments.is_empty()
                 }
                 _ => true,
             }
         };
 
+        // JHPATCH: Prettier 3.9 union layout (prettierCompat: "3.9")
         let members = format_with(|f| {
             let leading_soft_line_break_or_space =
                 !fits_on_next_line && should_indent && before_pipe_comments.is_empty();
@@ -226,6 +230,7 @@ impl<'a> FormatWrite<'a> for AstNode<'a, TSUnionType<'a>> {
             format_union_types(types, suppressed_node_span, false, f);
         });
 
+        // JHPATCH: Prettier 3.9 union layout (prettierCompat: "3.9")
         let types = format_with(|f| {
             if fits_on_next_line {
                 write!(f, [group(&members)]);
@@ -240,6 +245,7 @@ impl<'a> FormatWrite<'a> for AstNode<'a, TSUnionType<'a>> {
             // type Some = B & (C | A) & D
             // ```
             if self.needs_parentheses(f) {
+                // JHPATCH: Prettier 3.9 union layout (prettierCompat: "3.9")
                 let leading_soft_line_break = fits_on_next_line && before_pipe_comments.is_empty();
                 return write!(
                     f,
@@ -290,6 +296,7 @@ impl<'a> FormatWrite<'a> for AstNode<'a, TSUnionType<'a>> {
             let breaks_before_comments = (has_own_line_comment
                 || (comment_info.has_end_of_line_comment && only_type))
                 && !is_conditional_branch;
+            // JHPATCH: Prettier 3.9 union layout (prettierCompat: "3.9")
             let breaks_before_members = fits_on_next_line
                 && should_indent
                 && before_pipe_comments.is_empty()
@@ -297,6 +304,7 @@ impl<'a> FormatWrite<'a> for AstNode<'a, TSUnionType<'a>> {
             write!(
                 f,
                 [
+                    // JHPATCH: Prettier 3.9 union layout (prettierCompat: "3.9")
                     (breaks_before_comments || breaks_before_members).then(soft_line_break),
                     FormatLeadingComments::Comments(before_pipe_comments),
                     group(&content)

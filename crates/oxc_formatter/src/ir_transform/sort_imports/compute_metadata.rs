@@ -28,6 +28,7 @@ pub fn compute_import_metadata<'a>(
         modifiers: compute_modifiers(metadata),
     });
 
+    // JHPATCH: Normalize sources for the configured collation (sortImports.collation)
     // `Intl` collation compares the whole specifier, including any `?query`.
     let sort_source = if options.collation.is_intl() { unquote(metadata.source) } else { source };
     let normalized_source = normalize_name(sort_source, options);
@@ -43,6 +44,7 @@ pub fn compute_import_metadata<'a>(
     let should_regroup_side_effect = group_matcher.should_regroup_side_effect();
     let should_regroup_side_effect_style = group_matcher.should_regroup_side_effect_style();
 
+    // JHPATCH: Keep suppressed imports in place (sortImports.partitionBySideEffect)
     let is_ignored = metadata.is_suppressed
         || (!options.sort_side_effects
             && metadata.is_side_effect
@@ -148,10 +150,12 @@ fn compute_modifiers(metadata: &ImportLineMetadata) -> Vec<ImportModifier> {
 /// This removes quotes and query parameters from the source string.
 /// For example, `"./foo.js?bar"` becomes `./foo.js`.
 fn extract_source_path(source: &str) -> &str {
+    // JHPATCH: Share unquote with the Intl source key (sortImports.collation)
     let source = unquote(source);
     source.split('?').next().unwrap_or(source)
 }
 
+// JHPATCH: Share unquote with the Intl source key (sortImports.collation)
 fn unquote(source: &str) -> &str {
     source.trim_matches('"').trim_matches('\'')
 }

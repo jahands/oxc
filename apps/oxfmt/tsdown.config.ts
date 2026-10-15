@@ -74,6 +74,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    // JHPATCH: Route prettier-plugin-tailwindcss's Astro import to the proxy (astro.useProjectPlugin)
     {
       // `prettier-plugin-tailwindcss` wraps the Astro parsers once per process,
       // the proxy forwards them to the Astro plugin of each format call (bundled or `astro.useProjectPlugin`)

@@ -27,9 +27,11 @@ fn main() -> Result<(), String> {
         order,
         partition_by_newline,
         partition_by_comment,
+        // JHPATCH: New sortImports option (partitionBySideEffect)
         partition_by_side_effect: false,
         sort_side_effects,
         ignore_case,
+        // JHPATCH: New sortImports options (collation, sortSpecifiers, hoist)
         collation: SortCollation::Natural,
         sort_specifiers: false,
         hoist: false,

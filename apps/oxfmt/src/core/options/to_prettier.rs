@@ -282,6 +282,7 @@ fn inject_svelte_plugin_payload(opts: &mut Value, config: &FormatConfig) {
 ///
 /// See: <https://github.com/withastro/prettier-plugin-astro#configuration>
 fn inject_astro_plugin_payload(opts: &mut Value, config: &FormatConfig) {
+    // JHPATCH: Destructure the astro.useProjectPlugin fields
     let Some(AstroConfig {
         allow_shorthand,
         skip_frontmatter,
@@ -310,6 +311,7 @@ fn inject_astro_plugin_payload(opts: &mut Value, config: &FormatConfig) {
             }),
         );
     }
+    // JHPATCH: Pass the project prettier-plugin-astro directory to JS (astro.useProjectPlugin)
     if let Some(dir) = project_plugin_dir {
         map.insert(
             "_astroProjectPluginDir".to_string(),

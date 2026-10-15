@@ -16,6 +16,7 @@ pub struct MarkdownFormatOptions {
     pub prose_wrap: ProseWrap,
     /// Preferred quote for re-quotable titles. Mirrors Prettier's `singleQuote`.
     pub single_quote: SingleQuote,
+    // JHPATCH: markdown.lazyCodeSpanContinuation option
     /// Continuation lines of a multi-line code span start at column 0, without the containers'
     /// indentation or `>` markers (lazy continuation lines, as Prettier prints them),
     /// when none of them starts with whitespace.

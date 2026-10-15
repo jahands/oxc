@@ -460,6 +460,7 @@ pub fn collect_inlines<'a>(
                         let printed = print_code_span(c, f);
                         code_span_joined = !printed.contains('\n');
                         code_span_tail = printed.rsplit('\n').next();
+                        // JHPATCH: Print code span continuation lines at column 0 (markdown.lazyCodeSpanContinuation)
                         // A continuation line with leading whitespace would lose it to the container's column
                         let separator = if f.options().lazy_code_span_continuation
                             && printed

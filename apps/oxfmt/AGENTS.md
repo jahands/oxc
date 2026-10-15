@@ -106,6 +106,8 @@ Language-pair data crosses as `DispatchRequest::parent_context` markers the disp
 Vocabulary: "fallback" = the dispatcher's optional `PrettierDocFallback` slot (a build/root may not install one).
 The pure Rust build runs fallback-less, so non-native embeds (html-in-js, custom front matter) deliberately stay verbatim.
 
+<!-- JHPATCH: List the MDX root used to sort imports in MDX (sortImports) -->
+
 The roots install `SessionServices`, all via `embed/services.rs::for_root` (one definition per build; the napi one takes the `ExternalServices` transport, and adds the Prettier fallback / string embedder / Tailwind sorter to the registry dispatcher): the JS/TS, CSS and Markdown file roots (`core/format.rs`, `PhysicalFile` sessions, both builds) and the Vue/Svelte/Astro `<script>`, Astro frontmatter and MDX `import` / `export` / code block root (`api/text_to_doc_api.rs`, `VirtualDocument` session, napi only).
 
 Which languages may dispatch AT ALL from a given host is the host crate's own gate (e.g. `oxc_formatter_css` dispatches only `yaml`/`toml` front matter, `oxc_formatter_markdown` every fenced code block's language); the shared `route_embedded()` table then decides who serves the language.

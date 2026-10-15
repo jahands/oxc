@@ -261,6 +261,7 @@ impl SourceFormatter {
         }
         // Languages that embed JS/TS code.
         // Expressions like `__vue_expression` and `__ng_directive` are not supported yet.
+        // JHPATCH: Format JS in MDX with oxc_formatter when sortImports is enabled, so its imports are sorted
         // MDX ESM blocks and code blocks use `oxc_formatter` only when imports are sorted.
         if matches!(language, Vue | Svelte | Astro)
             || (matches!(language, Mdx) && config.is_sort_imports_enabled())

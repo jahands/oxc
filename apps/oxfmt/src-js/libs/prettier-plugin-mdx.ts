@@ -1,3 +1,4 @@
+// JHPATCH: Prettier mdx parser override that keeps multi-line MDX comments verbatim (DIVERGENCES.md#mdx-multiline-comment)
 /**
  * Prettier plugin that keeps multi-line MDX comments (`{/* ... *\/}`) verbatim.
  *

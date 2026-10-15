@@ -1,3 +1,4 @@
+// JHPATCH: Forward Tailwind's wrapped Astro parsers to the bundled or project prettier-plugin-astro (astro.useProjectPlugin)
 /**
  * Stand-in for `prettier-plugin-astro` inside `prettier-plugin-tailwindcss`.
  *

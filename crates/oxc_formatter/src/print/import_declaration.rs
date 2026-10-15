@@ -123,6 +123,7 @@ impl<'a> Format<'a, JsFormatContext<'a>>
 
         let should_insert_space_around_brackets = f.options().bracket_spacing.value();
 
+        // JHPATCH: Sort named specifiers (sortImports.sortSpecifiers)
         let mut named_specifiers: SmallVec<[_; 8]> = specifiers_iter.collect();
         if let Some(sort_imports) = &f.options().sort_imports
             && sort_imports.sort_specifiers
@@ -191,6 +192,7 @@ impl<'a> Format<'a, JsFormatContext<'a>>
     }
 }
 
+// JHPATCH: Sort named specifiers (sortImports.sortSpecifiers)
 /// Orders named specifiers like `@ianvs/prettier-plugin-sort-imports`:
 /// value specifiers before inline `type` specifiers, then by local name.
 fn sort_named_specifiers<'a>(

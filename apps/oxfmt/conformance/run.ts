@@ -204,6 +204,7 @@ const categories: Category[] = [
     ],
     optionSets: [{ printWidth: 80 }, { printWidth: 100, proseWrap: "always" }],
   },
+  // JHPATCH: mdx conformance category that pins the mdx-multiline-comment divergence
   {
     name: "mdx",
     sources: [

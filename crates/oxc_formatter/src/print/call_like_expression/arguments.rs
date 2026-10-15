@@ -36,10 +36,12 @@ use crate::{
 
 impl<'a> Format<'a, JsFormatContext<'a>> for AstNode<'a, ArenaVec<'a, Argument<'a>>> {
     fn fmt(&self, f: &mut JsFormatter<'_, 'a>) {
+        // JHPATCH: Body moved to write_arguments, which chain-link calls share (sole multiline template fix)
         write_arguments(self, true, f);
     }
 }
 
+// JHPATCH: Do not hug a sole multiline template in a non-head member chain call, as Prettier does
 /// The arguments of a member-chain call whose callee is itself a chain link (`b(...)` in `a.b(...).c()`).
 /// A sole multiline template is not hugged to the parentheses there, unlike in a standalone call.
 pub struct FormatChainLinkArguments<'a, 'b>(pub &'b AstNode<'a, ArenaVec<'a, Argument<'a>>>);
@@ -50,6 +52,7 @@ impl<'a> Format<'a, JsFormatContext<'a>> for FormatChainLinkArguments<'a, '_> {
     }
 }
 
+// JHPATCH: Upstream Arguments::fmt body with a hugs_verbatim_template switch for chain-link calls
 fn write_arguments<'a>(
     node: &AstNode<'a, ArenaVec<'a, Argument<'a>>>,
     hugs_verbatim_template: bool,
@@ -97,6 +100,7 @@ fn write_arguments<'a>(
                     ))
                     && is_test_call_expression(call, f.comments()))
         })
+        // JHPATCH: Chain-link calls do not hug a sole multiline template
         || (hugs_verbatim_template && is_verbatim_multiline_template_sole_arg(arguments, call, f))
         || is_react_hook_with_deps_array(node, f.comments())
     {

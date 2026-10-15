@@ -11,6 +11,7 @@ pub struct SortImportsOptions {
     /// Partition imports by comments.
     /// Default is `false`.
     pub partition_by_comment: bool,
+    // JHPATCH: sortImports.partitionBySideEffect option
     /// Partition imports by side effect imports that keep their position,
     /// and by suppressed imports.
     /// Default is `false`.
@@ -24,6 +25,7 @@ pub struct SortImportsOptions {
     /// Ignore case when sorting.
     /// Default is `true`.
     pub ignore_case: bool,
+    // JHPATCH: sortImports.collation, sortImports.sortSpecifiers and sortImports.hoist options
     /// How import sources (and specifiers, with `sort_specifiers`) are compared.
     /// Default is [`SortCollation::Natural`].
     pub collation: SortCollation,
@@ -115,10 +117,12 @@ impl Default for SortImportsOptions {
         Self {
             partition_by_newline: false,
             partition_by_comment: false,
+            // JHPATCH: Default for sortImports.partitionBySideEffect
             partition_by_side_effect: false,
             sort_side_effects: false,
             order: SortOrder::default(),
             ignore_case: true,
+            // JHPATCH: Defaults for sortImports.collation, sortImports.sortSpecifiers and sortImports.hoist
             collation: SortCollation::default(),
             sort_specifiers: false,
             hoist: false,
@@ -174,6 +178,7 @@ impl fmt::Display for SortOrder {
     }
 }
 
+// JHPATCH: sortImports.collation values
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub enum SortCollation {
     /// Code point order with digit runs compared as numbers.

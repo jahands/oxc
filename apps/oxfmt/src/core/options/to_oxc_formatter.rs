@@ -121,6 +121,7 @@ pub fn to_oxc_formatter(
 
     format_options.sort_imports = sort_imports;
     format_options.jsdoc = to_jsdoc(config);
+    // JHPATCH: Map prettierCompat
     format_options.prettier_compat = config.prettier_compat.map(|compat| match compat {
         PrettierCompatConfig::V3_9 => PrettierCompat::V3_9,
     });
@@ -172,6 +173,7 @@ pub(super) fn to_sort_imports(config: &FormatConfig) -> Result<Option<SortImport
     if let Some(v) = sort_imports_config.partition_by_comment {
         sort_imports.partition_by_comment = v;
     }
+    // JHPATCH: Map sortImports.partitionBySideEffect
     if let Some(v) = sort_imports_config.partition_by_side_effect {
         sort_imports.partition_by_side_effect = v;
     }
@@ -187,6 +189,7 @@ pub(super) fn to_sort_imports(config: &FormatConfig) -> Result<Option<SortImport
     if let Some(v) = sort_imports_config.ignore_case {
         sort_imports.ignore_case = v;
     }
+    // JHPATCH: Map sortImports.collation, sortImports.sortSpecifiers and sortImports.hoist
     if let Some(v) = sort_imports_config.collation {
         sort_imports.collation = match v {
             SortCollationConfig::Natural => SortCollation::Natural,

@@ -11,6 +11,7 @@ pub struct SortableImport<'a> {
     /// Comments directly before this import (no empty line between).
     pub leading_lines: Vec<SourceLine<'a>>,
     pub import_line: SourceLine<'a>,
+    // JHPATCH: Line and trailing comment info for hoist and side effect blank lines
     /// Index of `import_line` among the lines of its chunk, before sorting.
     pub line_idx: usize,
     /// Whether a comment follows the import on its line.
@@ -48,6 +49,7 @@ impl SortSortableImports for Vec<SortableImport<'_>> {
             return;
         }
 
+        // JHPATCH: Sort segments between side effect imports independently (sortImports.partitionBySideEffect)
         // With `partition_by_side_effect`, ignored imports split the sortable ones into segments
         // that are sorted independently.
         // `sortable_indices` is ascending, so a gap between neighbors means an ignored import sits between them.
@@ -178,6 +180,7 @@ fn sort_indices_by_source(
     // so the stable `sort_by` preserves the original order of equal imports.
     indices.sort_by(|&a, &b| {
         let ordering =
+            // JHPATCH: Compare sources with the configured collation (sortImports.collation)
             compare_names(&imports[a].normalized_source, &imports[b].normalized_source, options);
         if options.order.is_desc() { ordering.reverse() } else { ordering }
     });

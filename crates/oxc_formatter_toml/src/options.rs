@@ -2,6 +2,7 @@ use oxc_formatter_core::{
     CoreFormatOptions, FormatOptions, IndentStyle, IndentWidth, LineEnding, LineWidth,
 };
 
+// JHPATCH: oxc-toml options under prettier-plugin-toml names (toml options); Default is hand-written for oxc-toml's defaults
 /// Format options for TOML.
 ///
 /// The shared layout options and `trailing_commas` map the same way as in `prettier-plugin-toml`.
@@ -17,6 +18,7 @@ pub struct TomlFormatOptions {
     pub line_width: LineWidth,
     pub line_ending: LineEnding,
     pub trailing_commas: TrailingCommas,
+    // JHPATCH: toml options passed to oxc-toml
     /// Align consecutive entries vertically.
     pub align_entries: bool,
     /// Align consecutive comments after entries and array items vertically.
@@ -43,6 +45,7 @@ pub struct TomlFormatOptions {
     pub allowed_blank_lines: usize,
 }
 
+// JHPATCH: oxc-toml's defaults for the toml options
 impl Default for TomlFormatOptions {
     fn default() -> Self {
         Self {
@@ -113,6 +116,7 @@ impl TomlFormatOptions {
             },
             crlf: self.line_ending.is_carriage_return_line_feed(),
             array_trailing_comma: matches!(self.trailing_commas, TrailingCommas::Always),
+            // JHPATCH: Pass the toml options to oxc-toml
             align_entries: self.align_entries,
             align_comments: self.align_comments,
             align_single_comments: self.align_single_comments,

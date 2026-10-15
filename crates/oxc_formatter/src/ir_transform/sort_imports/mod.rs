@@ -1,7 +1,9 @@
+// JHPATCH: Intl collation module (sortImports.collation)
 pub mod collation;
 mod compute_metadata;
 mod group_config;
 mod group_matcher;
+// JHPATCH: Import hoisting module (sortImports.hoist)
 mod hoist;
 pub mod options;
 mod partitioned_chunk;
@@ -14,6 +16,7 @@ use oxc_formatter_core::format_element::{
     tag::{LabelId, Tag},
 };
 
+// JHPATCH: Import hoisting entry point (sortImports.hoist)
 pub use hoist::hoist_imports;
 
 use crate::{
@@ -42,6 +45,7 @@ use crate::{
 ///
 /// # Panics
 /// Panics if `sort_imports` option is not enabled.
+// JHPATCH: Pass the chunk position for the hoist comment rules (sortImports.hoist)
 pub fn sort_imports_chunk(
     formatter: &mut JsFormatter<'_, '_>,
     chunk_start: usize,
@@ -54,6 +58,7 @@ pub fn sort_imports_chunk(
     formatter.replace_end(chunk_start, &sorted_elements);
 }
 
+// JHPATCH: Chunk position for the hoist comment rules (sortImports.hoist)
 /// Where a chunk of `ImportDeclaration`s starts, for the comment rules of `hoist`.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ChunkPosition {
@@ -82,6 +87,7 @@ fn transform<'a>(
     elements: &[FormatElement<'a>],
     options: &SortImportsOptions,
     allocator: &'a Allocator,
+    // JHPATCH: Chunk position for the hoist comment rules (sortImports.hoist)
     position: ChunkPosition,
 ) -> ArenaVec<'a, FormatElement<'a>> {
     // Parse string based groups into our internal representation for performance
@@ -127,6 +133,7 @@ fn transform<'a>(
     // and any `Line(_)` inside is for output positioning, not a real line boundary.
     // e.g. ```import "a"; <StartLineSuffix> Line(Empty) Text("// trailing") <EndLineSuffix>```
     let mut inside_line_suffix = false;
+    // JHPATCH: Line-splitting state for comments with hoist (sortImports.hoist)
     // A block comment that starts the file is followed by `Line(SoftOrSpace)`,
     // which prints as a line break at the top level.
     // With `hoist`, it splits lines so that the comment can stay at the top.
@@ -137,17 +144,20 @@ fn transform<'a>(
     let mut inside_own_line_suffix = false;
     let comment_label = LabelId::of(JsLabels::Comment);
     let import_label = LabelId::of(JsLabels::ImportDeclaration);
+    // JHPATCH: Read suppressed imports as imports (sortImports.partitionBySideEffect)
     let suppressed_import_label = LabelId::of(JsLabels::SuppressedImportDeclaration);
     for (idx, el) in prev_elements.iter().enumerate() {
         if let FormatElement::Tag(tag) = el {
             match tag {
                 Tag::StartLabelled(id) => {
+                    // JHPATCH: Treat a suppressed import like a multi-line import (sortImports.partitionBySideEffect)
                     if *id == comment_label {
                         inside_comment = true;
                     } else if *id == import_label || *id == suppressed_import_label {
                         inside_multiline_import = true;
                     }
                 }
+                // JHPATCH: Split an own-line trailing comment into its own line (sortImports.hoist)
                 Tag::StartLineSuffix => {
                     inside_line_suffix = true;
                     if options.hoist
@@ -185,6 +195,7 @@ fn transform<'a>(
                     // Neither label is expected to nest, so this naive reset is sufficient.
                     if inside_comment {
                         inside_comment = false;
+                        // JHPATCH: Track a top-level block comment (sortImports.hoist)
                         after_top_level_comment =
                             options.hoist && !inside_multiline_import && !inside_line_suffix;
                         continue;
@@ -196,6 +207,7 @@ fn transform<'a>(
             }
         }
 
+        // JHPATCH: End a line after a top-level block comment (sortImports.hoist)
         let ends_line = match el {
             FormatElement::Line(LineMode::Empty | LineMode::Hard) => true,
             FormatElement::Line(LineMode::SoftOrSpace) => after_top_level_comment,
@@ -304,6 +316,7 @@ fn transform<'a>(
     // After sorting, flatten everything back to `FormatElement`s.
     let mut next_elements = ArenaVec::with_capacity_in(prev_elements.len(), &allocator);
 
+    // JHPATCH: Keep leading comments at the top of the file (sortImports.hoist)
     // With `hoist`, comments before the first import of the file stay at the top.
     let mut keep_leading_comments_at_top = options.hoist && position != ChunkPosition::Inner;
     let mut chunks_iter = chunks.into_iter().peekable();
@@ -336,6 +349,7 @@ fn transform<'a>(
                 // import B from "b";
                 // // chunk trailing
                 // ```
+                // JHPATCH: Pass keep_leading_comments_at_top (sortImports.hoist)
                 let (sorted_imports, orphan_contents, trailing_lines, slot_had_leading_blank) =
                     chunk.into_sorted_import_units(
                         &group_matcher,
@@ -344,6 +358,7 @@ fn transform<'a>(
                     );
 
                 // Output leading orphan content (after_slot: None)
+                // JHPATCH: Track comments kept at the top (sortImports.hoist)
                 let mut leading_orphan_ends_with_comment = false;
                 let mut has_top_comments = false;
                 for orphan in &orphan_contents {
@@ -351,6 +366,7 @@ fn transform<'a>(
                         for line in &orphan.lines {
                             line.write(prev_elements, &mut next_elements, true);
                         }
+                        // JHPATCH: Track comments kept at the top (sortImports.hoist)
                         leading_orphan_ends_with_comment =
                             matches!(orphan.lines.last(), Some(SourceLine::CommentOnly(..)));
                         has_top_comments = options.hoist
@@ -360,6 +376,7 @@ fn transform<'a>(
                                 .any(|line| matches!(line, SourceLine::CommentOnly(..)));
                     }
                 }
+                // JHPATCH: Blank line between top comments and the first import's comments (sortImports.hoist)
                 // With `hoist`, comments kept at the top of the file are separated by a blank line
                 // from the comments of an import sorted to the front.
                 if has_top_comments
@@ -376,9 +393,11 @@ fn transform<'a>(
                 let mut prev_line_idx = 0;
 
                 // Output sorted import units with orphan content at their slot positions
+                // JHPATCH: Track the previous import for side effect and hoist blank lines
                 let mut prev_import: Option<&SortableImport> = None;
                 let mut seen_non_ignored = false;
                 for (slot_idx, sorted_import) in sorted_imports.iter().enumerate() {
+                    // JHPATCH: Blank lines around side effect imports (sortImports.partitionBySideEffect)
                     let insert_newline = prev_import.is_some_and(|prev| {
                         if options.partition_by_side_effect
                             && (prev.is_ignored || sorted_import.is_ignored)
@@ -406,6 +425,7 @@ fn transform<'a>(
                                 slot_had_leading_blank[slot_idx],
                             )
                     });
+                    // JHPATCH: Blank line after an import with a trailing comment (sortImports.hoist)
                     // With `hoist`, an import with a trailing comment is followed by a blank line
                     // when the next import did not start on the line right after it.
                     let insert_newline = insert_newline
@@ -422,6 +442,7 @@ fn transform<'a>(
                     if insert_newline {
                         next_elements.push(FormatElement::Line(LineMode::Empty));
                     }
+                    // JHPATCH: Track the previous import for side effect and hoist blank lines
                     prev_import = Some(sorted_import);
                     if !sorted_import.is_ignored {
                         seen_non_ignored = true;
@@ -432,6 +453,7 @@ fn transform<'a>(
                         line.write(
                             prev_elements,
                             &mut next_elements,
+                            // JHPATCH: Keep blank lines in leading comments (sortImports.hoist)
                             options.partition_by_newline || options.hoist,
                         );
                     }
@@ -529,6 +551,7 @@ fn should_insert_newline_between(
     false
 }
 
+// JHPATCH: Blank line rules around side effect imports (sortImports.partitionBySideEffect)
 /// Resolve whether a blank line goes between two neighbors in a `partition_by_side_effect` chunk
 /// when at least one of them is an ignored (side effect) import.
 ///

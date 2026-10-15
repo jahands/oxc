@@ -276,6 +276,7 @@ Prettier keeps `json` / `json5` blocks as written: their parser rejects a blank 
 Rare in Astro projects (GitHub code search, 2026-10: about 350 files in 72 repos, vs 29k for `lang="scss"`).
 Not tested but `oxc-css-parser` already parses it, so we can add Sass support for `oxc_formatter_css` in the future.
 
+<!-- JHPATCH: Keep multi-line MDX comments verbatim; Prettier's output fails to compile (prettier/prettier#17700) -->
 ## mdx-multiline-comment
 
 - Why: semantics (prettier/prettier#17700)

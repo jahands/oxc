@@ -72,6 +72,7 @@ pub fn to_sort_package_json(config: &FormatConfig) -> Option<sort_package_json::
     Some(
         sort_package_json::SortOptions::new()
             .with_sort_scripts(sort_config.sort_scripts.unwrap_or(false))
+            // JHPATCH: Map sortPackageJson.preset to the vendored sort-package-json SortOrder
             .with_order(match sort_config.preset {
                 None | Some(SortPackageJsonPresetConfig::Oxfmt) => {
                     sort_package_json::SortOrder::Default

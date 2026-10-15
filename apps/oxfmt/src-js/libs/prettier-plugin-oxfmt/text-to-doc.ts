@@ -112,6 +112,7 @@ function resolveRefs(node: unknown, rawRefs: unknown[], cache: unknown[]): unkno
   return out;
 }
 
+// JHPATCH: Detect MDX import/export blocks so oxc_formatter can sort their imports (sortImports in MDX)
 /**
  * Detects Vue fragment mode and MDX ESM blocks from Prettier's internal flags.
  *
@@ -133,6 +134,7 @@ function detectParentContext(parentParser: string, options: Record<string, unkno
   if (parentParser === "svelte") {
     return "svelte-script";
   }
+  // JHPATCH: Report MDX import/export blocks as mdx-esm (sortImports in MDX)
   if (parentParser === "mdx" && typeof options.__onHtmlBindingRoot === "function") {
     return "mdx-esm";
   }

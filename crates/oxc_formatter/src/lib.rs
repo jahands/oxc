@@ -130,10 +130,12 @@ pub fn format_to_ir<'a>(
 ) -> Result<EmbeddedIr<'a>, OxcDiagnostic> {
     let allocator = session.allocator();
     let program = parse(allocator, allocator.alloc_str(source_text), source_type)?;
+    // JHPATCH: Move imports to the top before formatting (sortImports.hoist)
     let program = hoist_imports(allocator, program, &options);
     let node = AstNode::new(program, AstNodes::Dummy(), allocator);
     let mut context =
         JsFormatContext::new(program.source_text, program.source_type, &program.comments, options);
+    // JHPATCH: Semicolon rule moved to embedding_omits_semicolon, shared with format_embedded_with_session (sortImports in MDX)
     context.set_embedding_omits_semicolon(embedding_omits_semicolon(program, embedded_in));
 
     let (ir, _) = formatter::build_ir(
@@ -146,6 +148,7 @@ pub fn format_to_ir<'a>(
     Ok(EmbeddedIr { ir })
 }
 
+// JHPATCH: Format MDX ESM blocks and code blocks through oxc_formatter (sortImports in MDX)
 /// Like [`format_with_session`], for a program embedded in a document whose host builds the final output,
 /// e.g. a code block in MDX formatted by Prettier.
 ///
@@ -178,6 +181,7 @@ pub fn format_embedded_with_session<'a>(
     ))
 }
 
+// JHPATCH: Reject MDX ESM blocks Prettier would not accept (sortImports in MDX)
 /// Statements Prettier accepts in an MDX ESM block; `export * from` is not one of them.
 fn is_mdx_esm_statement(statement: &Statement<'_>) -> bool {
     match statement {
@@ -191,6 +195,7 @@ fn is_mdx_esm_statement(statement: &Statement<'_>) -> bool {
     }
 }
 
+// JHPATCH: format_to_ir's semicolon rule, shared with format_embedded_with_session (sortImports in MDX)
 /// Special case for js-in-xxx: a single JSX expression statement in a Markdown code block prints without its semicolon.
 fn embedding_omits_semicolon(program: &Program<'_>, embedded_in: Option<JsEmbeddedIn>) -> bool {
     embedded_in == Some(JsEmbeddedIn::MarkdownCodeBlock)
@@ -305,6 +310,7 @@ fn format_program_with_session<'a>(
     program: &'a Program<'a>,
     options: JsFormatOptions,
 ) -> Formatted<'a, JsFormatContext<'a>> {
+    // JHPATCH: Move imports to the top before formatting (sortImports.hoist)
     let program = hoist_imports(session.allocator(), program, &options);
     let node = AstNode::new(program, AstNodes::Dummy(), session.allocator());
     format_node(
@@ -364,6 +370,7 @@ fn parse<'a>(
     Ok(allocator.alloc(ret.program))
 }
 
+// JHPATCH: Re-parse with imports moved to the top (sortImports.hoist)
 /// With `sortImports.hoist`, re-parse `program` from its source with the imports moved to the top
 /// ([`ir_transform::hoist_imports`]), when that changes the source.
 fn hoist_imports<'a>(
@@ -410,6 +417,7 @@ pub(crate) enum JsLabels {
     MemberChain,
     /// For `ir_transform/sort_imports`
     ImportDeclaration,
+    // JHPATCH: Label for suppressed imports (sortImports.partitionBySideEffect)
     /// For `ir_transform/sort_imports`
     /// Wraps the verbatim text of a suppressed `ImportDeclaration`.
     SuppressedImportDeclaration,
@@ -429,6 +437,7 @@ impl Label for JsLabels {
         match self {
             Self::MemberChain => "MemberChain",
             Self::ImportDeclaration => "ImportDeclaration",
+            // JHPATCH: Label for suppressed imports (sortImports.partitionBySideEffect)
             Self::SuppressedImportDeclaration => "SuppressedImportDeclaration",
             Self::Comment => "Comment",
         }

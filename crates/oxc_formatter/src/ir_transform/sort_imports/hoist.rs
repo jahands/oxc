@@ -1,3 +1,4 @@
+// JHPATCH: Move top-level imports to the top of the file (sortImports.hoist) to match @ianvs/prettier-plugin-sort-imports
 use std::ops::Range;
 
 use oxc_allocator::Allocator;

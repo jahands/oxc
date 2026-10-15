@@ -268,6 +268,7 @@ pub struct FormatConfig {
     #[serde(alias = "experimentalSortImports")]
     pub sort_imports: Option<SortImportsUserConfig>,
 
+    // JHPATCH: Point to sortPackageJson.preset for prettier-plugin-packagejson's order
     /// Sort `package.json` keys.
     ///
     /// The default order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),
@@ -305,6 +306,7 @@ pub struct FormatConfig {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub jsdoc: Option<JsdocUserConfig>,
 
+    // JHPATCH: prettierCompat option to follow Prettier 3.9's union layout
     /// Follow a newer Prettier version's output where Oxfmt deliberately keeps an earlier Prettier style.
     ///
     /// - `"3.9"`: a union type that does not fit on the line first retries flat on the indented next line,
@@ -341,12 +343,14 @@ pub struct FormatConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub astro: Option<AstroUserConfig>,
 
+    // JHPATCH: markdown options (markdown.lazyCodeSpanContinuation)
     /// Options for Markdown files and Markdown embedded in other languages.
     ///
     /// - Languages: Markdown
     #[serde(skip_serializing_if = "Option::is_none")]
     pub markdown: Option<MarkdownConfig>,
 
+    // JHPATCH: toml options to match prettier-plugin-toml configs
     /// Options for TOML files and TOML embedded in other languages (front matter, Markdown code blocks).
     ///
     /// Option names follow [prettier-plugin-toml](https://github.com/un-ts/prettier/tree/master/packages/toml),
@@ -383,6 +387,7 @@ impl FormatConfig {
         matches!(self.astro, Some(AstroUserConfig::Bool(true) | AstroUserConfig::Object(_)))
     }
 
+    // JHPATCH: Enables oxc_formatter for JS in MDX when sortImports is set (sortImports in MDX)
     /// Whether import sorting is enabled by this config.
     ///
     /// Enabled when `sortImports` is set to `true` or an object;
@@ -427,6 +432,7 @@ impl FormatConfig {
         }
     }
 
+    // JHPATCH: Record the directory the project prettier-plugin-astro is resolved from (astro.useProjectPlugin)
     /// Record `base_dir` as the directory `prettier-plugin-astro` is resolved from,
     /// when `astro.useProjectPlugin` is enabled.
     pub fn resolve_astro_plugin_dir(&mut self, base_dir: &Path) {
@@ -510,6 +516,7 @@ pub enum OperatorPositionConfig {
     End,
 }
 
+// JHPATCH: prettierCompat values
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, JsonSchema)]
 pub enum PrettierCompatConfig {
     #[serde(rename = "3.9")]
@@ -591,6 +598,7 @@ pub struct SortImportsConfig {
     /// - Default: `false`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub partition_by_comment: Option<bool>,
+    // JHPATCH: sortImports.partitionBySideEffect option to match @ianvs/prettier-plugin-sort-imports
     /// Use side effect imports to separate imports into logical groups.
     ///
     /// When `true`, imports are not sorted across a side effect import that keeps its position
@@ -631,6 +639,7 @@ pub struct SortImportsConfig {
     /// - Default: `true`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ignore_case: Option<bool>,
+    // JHPATCH: sortImports.collation option to match @ianvs/prettier-plugin-sort-imports
     /// How import sources and specifier names are compared.
     ///
     /// - `"natural"`: Code point order, with digit runs compared as numbers.
@@ -644,6 +653,7 @@ pub struct SortImportsConfig {
     /// - Default: `"natural"`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub collation: Option<SortCollationConfig>,
+    // JHPATCH: sortImports.sortSpecifiers option to match @ianvs/prettier-plugin-sort-imports
     /// Sort named specifiers inside `{ ... }`.
     ///
     /// Value specifiers come before inline `type` specifiers, then specifiers are ordered by their local name,
@@ -657,6 +667,7 @@ pub struct SortImportsConfig {
     /// - Default: `false`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_specifiers: Option<bool>,
+    // JHPATCH: sortImports.hoist option to match @ianvs/prettier-plugin-sort-imports
     /// Move every top-level import into one block at the top of the file,
     /// the way `@ianvs/prettier-plugin-sort-imports` does.
     ///
@@ -759,6 +770,7 @@ pub enum SortOrderConfig {
     Desc,
 }
 
+// JHPATCH: sortImports.collation values
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum SortCollationConfig {
@@ -904,6 +916,7 @@ pub struct SortPackageJsonConfig {
     /// - Default: `false`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_scripts: Option<bool>,
+    // JHPATCH: sortPackageJson.preset option for prettier-plugin-packagejson's order
     /// The field order and nested sorting rules.
     ///
     /// - `"oxfmt"`: Oxfmt's own order.
@@ -917,6 +930,7 @@ pub struct SortPackageJsonConfig {
     pub preset: Option<SortPackageJsonPresetConfig>,
 }
 
+// JHPATCH: sortPackageJson.preset values
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum SortPackageJsonPresetConfig {
@@ -1175,6 +1189,7 @@ pub struct AstroConfig {
     /// - Default: `"jsx"`
     #[serde(rename = "compressHTML", skip_serializing_if = "Option::is_none")]
     pub compress_html: Option<AstroCompressHtmlConfig>,
+    // JHPATCH: astro.useProjectPlugin option for projects that pin prettier-plugin-astro
     /// Whether to use the `prettier-plugin-astro` installed in your project (e.g. `0.14.x`) instead of the bundled version.
     /// It is resolved from the directory of the config file (the current working directory for the Node.js API).
     /// Formatting fails if it cannot be resolved.
@@ -1201,6 +1216,7 @@ pub enum AstroCompressHtmlConfig {
 
 // ---
 
+// JHPATCH: markdown options (markdown.lazyCodeSpanContinuation)
 #[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct MarkdownConfig {
@@ -1218,6 +1234,7 @@ pub struct MarkdownConfig {
 
 // ---
 
+// JHPATCH: toml options: oxc-toml settings under prettier-plugin-toml names
 #[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase", default)]
 pub struct TomlConfig {

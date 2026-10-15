@@ -3,6 +3,7 @@ use oxc_formatter_toml::{TomlFormatOptions, TrailingCommas};
 
 use super::super::oxfmtrc::{FormatConfig, TrailingCommaConfig};
 
+// JHPATCH: Doc mentions the toml options
 /// Convert `FormatConfig` into `TomlFormatOptions` for `oxc_formatter_toml`.
 ///
 /// Shared options follow Prettier's `prettier-plugin-toml` conventions,
@@ -26,6 +27,7 @@ pub fn to_oxc_formatter_toml(
         };
     }
 
+    // JHPATCH: Map the toml options to oxc-toml options to match prettier-plugin-toml configs
     let Some(toml) = &config.toml else {
         return options;
     };

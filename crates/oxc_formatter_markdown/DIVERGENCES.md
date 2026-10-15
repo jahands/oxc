@@ -469,6 +469,7 @@ Prettier prints code span lines from column 0 and the others from its own alignm
 so the content of `` `x y` `` loses two spaces per pass and an HTML comment gains four.
 With no whitespace past the container's column the same column-0 line is a lazy continuation and reads the same,
 so there the difference is layout only (most real-world cases).
+<!-- JHPATCH: lazy_code_span_continuation prints Prettier's column-0 code span lines -->
 The `lazy_code_span_continuation` option (oxfmt `markdown.lazyCodeSpanContinuation`) prints Prettier's column-0 lines
 for a code span whose continuation lines all start with no whitespace.
 

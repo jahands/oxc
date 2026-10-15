@@ -3,6 +3,7 @@ use oxc_formatter_markdown::{MarkdownFormatOptions, ProseWrap, SingleQuote};
 
 use super::super::oxfmtrc::{FormatConfig, ProseWrapConfig};
 
+// JHPATCH: Doc mentions the markdown options (markdown.lazyCodeSpanContinuation)
 /// Convert `FormatConfig` into `MarkdownFormatOptions` for `oxc_formatter_markdown`.
 ///
 /// Prettier's `markdown` language consumes the shared layout options plus
@@ -30,6 +31,7 @@ pub fn to_oxc_formatter_markdown(
         options.single_quote = SingleQuote::from(single_quote);
     }
 
+    // JHPATCH: Map markdown.lazyCodeSpanContinuation
     if let Some(lazy) = config.markdown.as_ref().and_then(|md| md.lazy_code_span_continuation) {
         options.lazy_code_span_continuation = lazy;
     }

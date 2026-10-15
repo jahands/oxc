@@ -617,10 +617,12 @@ impl Oxc {
             format_options.sort_imports = Some(SortImportsOptions {
                 partition_by_newline: sort_imports_config.partition_by_newline.unwrap_or(false),
                 partition_by_comment: sort_imports_config.partition_by_comment.unwrap_or(false),
+                // JHPATCH: New sortImports option (partitionBySideEffect)
                 partition_by_side_effect: false,
                 sort_side_effects: sort_imports_config.sort_side_effects.unwrap_or(false),
                 order,
                 ignore_case: sort_imports_config.ignore_case.unwrap_or(true),
+                // JHPATCH: New sortImports options (collation, sortSpecifiers, hoist)
                 collation: SortCollation::Natural,
                 sort_specifiers: false,
                 hoist: false,

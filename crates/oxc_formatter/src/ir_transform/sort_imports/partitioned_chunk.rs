@@ -61,6 +61,7 @@ impl<'a> PartitionedChunk<'a> {
     /// - `slot_had_leading_blank`: For each slot index, whether the original input had
     ///   at least one blank line before that slot. Indexed by slot position
     ///   (which is preserved across sorting), not by the import currently at that slot.
+    // JHPATCH: Document keep_leading_comments_at_top (sortImports.hoist)
     ///
     /// With `keep_leading_comments_at_top`, the comments directly before the first import
     /// become leading orphan content instead of moving with that import.
@@ -69,6 +70,7 @@ impl<'a> PartitionedChunk<'a> {
         self,
         group_matcher: &GroupMatcher,
         options: &SortImportsOptions,
+        // JHPATCH: Keep the comments before the first import at the top (sortImports.hoist)
         keep_leading_comments_at_top: bool,
     ) -> (Vec<SortableImport<'a>>, Vec<OrphanContent<'a>>, Vec<SourceLine<'a>>, Vec<bool>) {
         let Self::Imports(lines) = self else {
@@ -88,6 +90,7 @@ impl<'a> PartitionedChunk<'a> {
         // These attach to the next import as leading lines.
         let mut current_pending: Vec<SourceLine<'a>> = vec![];
 
+        // JHPATCH: Record the source line index of each import (sortImports.hoist)
         for (line_idx, line) in lines.into_iter().enumerate() {
             match line {
                 SourceLine::Import(_, ref metadata) => {
@@ -95,6 +98,7 @@ impl<'a> PartitionedChunk<'a> {
                     // so its presence there marks this slot as having a leading blank.
                     slot_had_leading_blank
                         .push(orphan_pending.iter().any(|l| matches!(l, SourceLine::Empty)));
+                    // JHPATCH: Keep the comments before the first import at the top (sortImports.hoist)
                     if keep_leading_comments_at_top && sortable_imports.is_empty() {
                         orphan_pending.append(&mut current_pending);
                     }
@@ -130,6 +134,7 @@ impl<'a> PartitionedChunk<'a> {
                     }
 
                     let is_side_effect = metadata.is_side_effect;
+                    // JHPATCH: Trailing comment info for hoist and side effect blank lines
                     let has_trailing_comment = metadata.has_trailing_comment;
                     let follows_trailing_comment =
                         sortable_imports.last().is_some_and(|prev| prev.has_trailing_comment);
@@ -139,6 +144,7 @@ impl<'a> PartitionedChunk<'a> {
                     sortable_imports.push(SortableImport {
                         leading_lines: std::mem::take(&mut current_pending),
                         import_line: line,
+                        // JHPATCH: Line and trailing comment info for hoist and side effect blank lines
                         line_idx,
                         has_trailing_comment,
                         follows_trailing_comment,
@@ -148,6 +154,7 @@ impl<'a> PartitionedChunk<'a> {
                         is_ignored,
                     });
                 }
+                // JHPATCH: Comments separated by blank lines move with the import (sortImports.hoist)
                 // With `hoist`, every comment before an import moves with it,
                 // keeping the empty lines that follow the first comment.
                 SourceLine::Empty if options.hoist && !current_pending.is_empty() => {
