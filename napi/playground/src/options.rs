@@ -194,6 +194,9 @@ pub struct OxcFormatterOptions {
     pub experimental_operator_position: Option<String>,
     /// Sort imports configuration (default: None)
     pub sort_imports: Option<OxcSortImportsOptions>,
+    // JHPATCH: Expose prettierCompat in the playground
+    /// Follow a newer Prettier version's output where the formatter keeps an earlier Prettier style: "3.9" (default: None)
+    pub prettier_compat: Option<String>,
 }
 
 #[napi(object)]
@@ -203,12 +206,26 @@ pub struct OxcSortImportsOptions {
     pub partition_by_newline: Option<bool>,
     /// Partition imports by comments (default: false)
     pub partition_by_comment: Option<bool>,
+    // JHPATCH: Expose sortImports.partitionBySideEffect in the playground
+    /// Partition imports by side effect imports that keep their position (default: false)
+    pub partition_by_side_effect: Option<bool>,
     /// Sort side effects imports (default: false)
     pub sort_side_effects: Option<bool>,
     /// Sort order: "asc" | "desc" (default: "asc")
     pub order: Option<String>,
     /// Ignore case when sorting (default: true)
     pub ignore_case: Option<bool>,
+    // JHPATCH: Expose sortImports.collation, sortSpecifiers, hoist, mergeDuplicates and splitTypeSpecifiers in the playground
+    /// How sources and names are compared: "natural" | "intl" (default: "natural")
+    pub collation: Option<String>,
+    /// Sort named specifiers inside `{ ... }` (default: false)
+    pub sort_specifiers: Option<bool>,
+    /// Move every top-level import into one block at the top of the file (default: false)
+    pub hoist: Option<bool>,
+    /// Merge imports of the same source (default: false)
+    pub merge_duplicates: Option<bool>,
+    /// Split inline `type` specifiers of a value import into a type import (default: false)
+    pub split_type_specifiers: Option<bool>,
     /// Add newlines between import groups (default: true)
     pub newlines_between: Option<bool>,
     /// Pattern prefixes for internal imports
