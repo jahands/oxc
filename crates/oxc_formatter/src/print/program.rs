@@ -187,15 +187,19 @@ fn format_import_decls_with_sort<'a, 'iter>(
     }
 
     // A single-import run is already in order, so skip the transform.
-    if count >= 2 {
+    // JHPATCH: The hoist comment rules also apply to a single import at the start of the program (sortImports.hoist)
+    if count >= 2 || (import_lines.enabled && position != ChunkPosition::Inner) {
         // JHPATCH: Where the chunk sits in the source, for the hoist comment rules (sortImports.hoist)
-        let has_top_of_file_comments = if position == ChunkPosition::Inner {
-            None
-        } else {
-            join.fmt().context().hoist_facts().map(|facts| facts.has_top_of_file_comments)
+        let facts = join.fmt().context().hoist_facts().filter(|_| position != ChunkPosition::Inner);
+        let source = ChunkSource {
+            position,
+            imports: import_lines.lines,
+            has_top_of_file_comments: facts.map(|facts| facts.has_top_of_file_comments),
+            top_comment_gap: facts.map_or(1, |facts| facts.top_comment_gap),
+            blank_before_first_import_comments: facts
+                .is_some_and(|facts| facts.blank_before_first_import_comments),
+            first_import_comment_height: facts.map_or(0, |facts| facts.first_import_comment_height),
         };
-        let source =
-            ChunkSource { position, imports: import_lines.lines, has_top_of_file_comments };
         sort_imports_chunk(join.fmt_mut(), chunk_start, &source);
     }
 
@@ -266,12 +270,18 @@ impl<'a> ImportLineCounter<'a> {
                 })
                 .last(),
         };
-        let has_trailing_comment = self
-            .comments
-            .get(self.comments.partition_point(|c| c.span.start < span.end))
-            .is_some_and(|comment| {
+        let trailing_comment_end = self.comments
+            [self.comments.partition_point(|c| c.span.start < span.end)..]
+            .iter()
+            .take_while(|comment| {
                 !source[span.start as usize..comment.span.start as usize].contains('\n')
-            });
+            })
+            .last()
+            .map(|comment| comment.span.end);
+        #[expect(clippy::cast_possible_truncation)]
+        let trailing_comment_height = trailing_comment_end.map_or(0, |end| {
+            source[span.start as usize..end as usize].matches('\n').count() as u32
+        });
         let comment_line = first_owned.map(|comment| self.line_of(comment.span.start));
         let line = self.line_of(span.start);
         let comment_height = comment_line.map_or(0, |comment_line| line - comment_line);
@@ -285,7 +295,8 @@ impl<'a> ImportLineCounter<'a> {
             line: hoisted.map_or(line, |import| import.line),
             comment_height,
             follows_import: hoisted.is_none_or(|import| import.follows_import),
-            has_trailing_comment,
+            has_trailing_comment: trailing_comment_end.is_some(),
+            trailing_comment_height,
             keeps_position: hoisted.is_some_and(|import| import.keeps_position),
         });
     }

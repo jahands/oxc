@@ -675,6 +675,20 @@ import "x";
 import { b } from "b";
 "#,
     );
+    // Babel prints the names of a suppressed import without escapes.
+    assert_format(
+        r#"
+import { c } from "c";
+// prettier-ignore
+import {   \u0061 } from "a"
+"#,
+        HOIST,
+        r#"
+import { c } from "c";
+// prettier-ignore
+import { a } from "a";
+"#,
+    );
     // Babel prints comments after a `with` clause after the source.
     assert_format(
         r#"
@@ -702,6 +716,256 @@ import { a } from "a";
 import { b } from "b";
 
 /* After `a`. */ // More.
+"#,
+    );
+}
+
+#[test]
+fn should_count_lines_from_the_end_of_a_trailing_comment() {
+    assert_format(
+        r#"
+import { b } from "b"; /* About
+ * `b`.
+ */
+import { c } from "c";
+"#,
+        HOIST,
+        r#"
+import { b } from "b"; /* About
+ * `b`.
+ */
+import { c } from "c";
+"#,
+    );
+    assert_format(
+        r#"
+import { b } from "b";
+import { a } from "a"; /* About
+ */
+console.log(a, b);
+"#,
+        HOIST,
+        r#"
+import { a } from "a"; /* About
+ */
+import { b } from "b";
+
+console.log(a, b);
+"#,
+    );
+    assert_format(
+        r#"
+// Header.
+import { a } from "a"; /* About
+ */
+import { z } from "z";
+"#,
+        HOIST,
+        r#"
+// Header.
+import { a } from "a"; /* About
+ */
+import { z } from "z";
+"#,
+    );
+    assert_format(
+        r#"
+import { a } from "a"; /* One. */ /* Two
+ */
+import { b } from "b";
+"#,
+        HOIST,
+        r#"
+import { a } from "a"; /* One. */ /* Two
+ */
+import { b } from "b";
+"#,
+    );
+}
+
+#[test]
+fn should_separate_top_comments_from_import_comments_that_span_lines() {
+    // The comment of `c` ends on its line, so `b` counts as starting two lines below the header.
+    assert_format(
+        r#"
+// Header.
+/* About
+   `c`. */ import { c } from "c";
+import { b } from "b";
+"#,
+        HOIST,
+        r#"
+// Header.
+
+import { b } from "b";
+/* About
+   `c`. */
+import { c } from "c";
+"#,
+    );
+    assert_format(
+        r#"
+// Header.
+// More.
+/* About
+   `c`. */ import { c } from "c";
+import { b } from "b";
+"#,
+        HOIST,
+        r#"
+// Header.
+// More.
+
+import { b } from "b";
+/* About
+   `c`. */
+import { c } from "c";
+"#,
+    );
+    // After a prologue, only when the first import stays first.
+    assert_format(
+        r#"
+"use strict";
+/* Header. */
+/* About
+   `a`. */ import { a } from "a";
+import { z } from "z";
+"#,
+        HOIST,
+        r#"
+"use strict";
+
+/* Header. */
+
+/* About
+   `a`. */
+import { a } from "a";
+import { z } from "z";
+"#,
+    );
+    assert_format(
+        r#"
+"use strict";
+/* Header. */
+/* About
+   `z`. */ import { z } from "z";
+import { a } from "a";
+"#,
+        HOIST,
+        r#"
+"use strict";
+
+/* Header. */
+/* About
+   `z`. */
+import { a } from "a";
+import { z } from "z";
+"#,
+    );
+    assert_format(
+        r#"
+#!/usr/bin/env node
+// Header.
+/* About
+   `a`. */ import { a } from "a";
+import { z } from "z";
+"#,
+        HOIST,
+        r#"
+#!/usr/bin/env node
+// Header.
+
+/* About
+   `a`. */
+import { a } from "a";
+import { z } from "z";
+"#,
+    );
+}
+
+#[test]
+fn should_count_comments_kept_after_a_prologue_as_lines_of_the_first_import() {
+    // Babel moves `a` down below its comment, so `b` starts on the line right after it.
+    assert_format(
+        r#"
+"use strict";
+/* Header. */
+/** About
+ */ import { a } from "a"; // Trailing `a`.
+
+import { b } from "b";
+"#,
+        HOIST,
+        r#"
+"use strict";
+
+/* Header. */
+
+/** About
+ */
+import { a } from "a"; // Trailing `a`.
+import { b } from "b";
+"#,
+    );
+}
+
+#[test]
+fn should_apply_comment_rules_to_a_single_import() {
+    assert_format(
+        r#"
+// Header.
+/* About
+   `a`. */ import { a } from "a";
+console.log(a);
+"#,
+        HOIST,
+        r#"
+// Header.
+
+/* About
+   `a`. */
+import { a } from "a";
+
+console.log(a);
+"#,
+    );
+    assert_format(
+        r#"
+const x = 1;
+// Header.
+/* About
+   `a`. */ import { a } from "a";
+"#,
+        HOIST,
+        r#"
+// Header.
+
+/* About
+   `a`. */
+import { a } from "a";
+
+const x = 1;
+"#,
+    );
+    assert_format(
+        r#"
+"use strict";
+// Header.
+/* About
+   `a`. */ import { a } from "a";
+console.log(a);
+"#,
+        HOIST,
+        r#"
+"use strict";
+
+// Header.
+
+/* About
+   `a`. */
+import { a } from "a";
+
+console.log(a);
 "#,
     );
 }

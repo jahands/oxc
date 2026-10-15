@@ -145,6 +145,7 @@ impl<'a> PartitionedChunk<'a> {
                             comment_height: 0,
                             follows_import: true,
                             has_trailing_comment: metadata.has_trailing_comment,
+                            trailing_comment_height: 0,
                             keeps_position: false,
                         });
                     let is_side_effect = metadata.is_side_effect;
@@ -166,6 +167,7 @@ impl<'a> PartitionedChunk<'a> {
                         comment_height: lines.comment_height,
                         has_leading_comment,
                         has_trailing_comment,
+                        trailing_comment_height: lines.trailing_comment_height,
                         follows_trailing_comment,
                         is_side_effect,
                         group_idx,

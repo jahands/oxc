@@ -80,6 +80,12 @@ pub struct ChunkSource {
     /// Whether the first import had "top of file" comments before `hoist` moved it,
     /// when `hoist` rewrote the source. See [`HoistFacts::has_top_of_file_comments`].
     pub has_top_of_file_comments: Option<bool>,
+    /// See [`HoistFacts::top_comment_gap`]. 1 without `hoist`.
+    pub top_comment_gap: u32,
+    /// See [`HoistFacts::blank_before_first_import_comments`].
+    pub blank_before_first_import_comments: bool,
+    /// See [`HoistFacts::first_import_comment_height`].
+    pub first_import_comment_height: u32,
 }
 
 // JHPATCH: Source lines of the imports for the hoist blank line rules (sortImports.hoist)
@@ -94,6 +100,8 @@ pub struct ImportLines {
     pub follows_import: bool,
     /// Whether a comment starts after the import declaration on the line where it starts.
     pub has_trailing_comment: bool,
+    /// Lines from the import declaration to the end of the last comment that starts after it on its line.
+    pub trailing_comment_height: u32,
     /// Whether the import keeps its position like a side effect import.
     pub keeps_position: bool,
 }
@@ -404,9 +412,27 @@ fn transform<'a>(
                 // JHPATCH: Track comments kept at the top (sortImports.hoist)
                 let mut leading_orphan_ends_with_comment = false;
                 let mut has_top_comments = false;
+                // JHPATCH: Line of the first import in the source (sortImports.hoist)
+                let first_source_line =
+                    sorted_imports.iter().map(|import| import.line).min().unwrap_or_default();
+                // JHPATCH: Blank line before the comments of the first import after a prologue (sortImports.hoist)
+                // They are the last line kept at the top, and get the blank line
+                // only when that import is still sorted first.
+                let blank_before_last_orphan_line = options.hoist
+                    && position == ChunkPosition::AfterPrologue
+                    && source.blank_before_first_import_comments
+                    && sorted_imports.first().is_some_and(|first| first.line == first_source_line);
                 for orphan in &orphan_contents {
                     if orphan.after_slot.is_none() {
-                        for line in &orphan.lines {
+                        for (idx, line) in orphan.lines.iter().enumerate() {
+                            // JHPATCH: Blank line before the comments of the first import after a prologue (sortImports.hoist)
+                            if blank_before_last_orphan_line
+                                && idx > 0
+                                && idx + 1 == orphan.lines.len()
+                                && matches!(orphan.lines[idx - 1], SourceLine::CommentOnly(..))
+                            {
+                                next_elements.push(FormatElement::Line(LineMode::Empty));
+                            }
                             line.write(prev_elements, &mut next_elements, true);
                         }
                         // JHPATCH: Track comments kept at the top (sortImports.hoist)
@@ -422,18 +448,19 @@ fn transform<'a>(
                 }
                 // JHPATCH: Blank line between top comments and the first import's comments (sortImports.hoist)
                 // With `hoist`, comments kept at the top of the file are separated by a blank line
-                // from the comments of an import sorted to the front.
+                // from the import sorted to the front when that import, moved to the line of the first
+                // import in the source below its own comments, starts two or more lines below them.
                 if has_top_comments
                     && position == ChunkPosition::FileStart
                     && leading_orphan_ends_with_comment
-                    && sorted_imports.first().is_some_and(|first| first.comment_height > 0)
+                    && sorted_imports
+                        .first()
+                        .is_some_and(|first| source.top_comment_gap + first.comment_height >= 2)
                 {
                     next_elements.push(FormatElement::Line(LineMode::Empty));
                 }
                 // Below comments kept at the top, the first import counts as starting
                 // on the line of the first import in the source, after its own leading lines.
-                let first_source_line =
-                    sorted_imports.iter().map(|import| import.line).min().unwrap_or_default();
                 let mut prev_line = 0;
 
                 // Output sorted import units with orphan content at their slot positions
@@ -471,17 +498,26 @@ fn transform<'a>(
                     });
                     // JHPATCH: Blank line after an import with a trailing comment (sortImports.hoist)
                     // With `hoist`, an import with a trailing comment is followed by a blank line
-                    // when the next import did not start on the line right after it.
+                    // when the next import did not start on the line right after the end of that comment.
                     let insert_newline = insert_newline
                         || (options.hoist
                             && prev_import.is_some_and(|prev| {
                                 sorted_import.line > prev_line + 1 && prev.has_trailing_comment
                             }));
-                    prev_line = if slot_idx == 0 && has_top_comments {
-                        first_source_line + sorted_import.comment_height
-                    } else {
-                        sorted_import.line
-                    };
+                    prev_line = sorted_import.trailing_comment_height
+                        + if slot_idx == 0 && has_top_comments {
+                            let prologue_comment_height = if sorted_import.line == first_source_line
+                            {
+                                source.first_import_comment_height
+                            } else {
+                                0
+                            };
+                            first_source_line
+                                + sorted_import.comment_height
+                                + prologue_comment_height
+                        } else {
+                            sorted_import.line
+                        };
                     if insert_newline {
                         next_elements.push(FormatElement::Line(LineMode::Empty));
                     }

@@ -337,21 +337,41 @@ pub fn hoist_imports<'a>(
         out.push('\n');
         allocator.alloc_str(&out)
     });
-    let has_top_of_file_comments = if has_prologue && first_import_idx == 0 {
-        let first_import_start = body[0].span().start;
-        comments_in(comments, prologue_end, first_import_start)
+    let first_import_start = body[first_import_idx].span().start;
+    // After a prologue, the comments before the first import that end on its line belong to it.
+    let (top_of_file_comments, first_import_comments) = if has_prologue && first_import_idx == 0 {
+        let prologue_comments = comments_in(comments, prologue_end, first_import_start);
+        let top_count = prologue_comments
             .iter()
-            .any(|comment| has_line_break(source, comment.span.end, first_import_start))
+            .rposition(|comment| has_line_break(source, comment.span.end, first_import_start))
+            .map_or(0, |idx| idx + 1);
+        prologue_comments.split_at(top_count)
     } else {
-        !top_comments.is_empty()
+        (top_comments, &[][..])
     };
+    let top_comment_gap = top_of_file_comments
+        .last()
+        .map_or(1, |comment| line_breaks(text(comment.span.end..first_import_start)) as u32);
+    let blank_before_first_import_comments =
+        match (top_of_file_comments.last(), first_import_comments.first()) {
+            (Some(last_top), Some(first)) => {
+                top_comment_gap >= 2 && line_breaks(text(last_top.span.end..first.span.start)) == 1
+            }
+            _ => false,
+        };
+    let first_import_comment_height = first_import_comments
+        .first()
+        .map_or(0, |comment| line_breaks(text(comment.span.start..first_import_start)) as u32);
     Some(HoistedSource {
         source_text,
         facts: HoistFacts {
             top_comments_followed_code: has_prologue
                 && first_import_idx > 0
                 && !top_comments.is_empty(),
-            has_top_of_file_comments,
+            has_top_of_file_comments: !top_of_file_comments.is_empty(),
+            top_comment_gap,
+            blank_before_first_import_comments,
+            first_import_comment_height,
             imports: import_facts,
         },
     })
@@ -375,6 +395,15 @@ pub struct HoistFacts {
     /// Whether comments before the first import end on an earlier line than it,
     /// after the prologue or the previous statement ("top of file" comments).
     pub has_top_of_file_comments: bool,
+    /// Lines from the end of the last "top of file" comment to the first import. 1 without such comments.
+    pub top_comment_gap: u32,
+    /// Whether the first import directly follows a hashbang or directives, and its comments
+    /// start on the line after the "top of file" comments and end on a later line.
+    /// Babel then separates the two with a blank line when that import is sorted first.
+    pub blank_before_first_import_comments: bool,
+    /// Lines from the start of the comments of the first import that directly follows a hashbang
+    /// or directives to the import. Those comments stay after the prologue in the rewritten source.
+    pub first_import_comment_height: u32,
     /// The top-level imports, in order.
     pub imports: Vec<HoistedImportFacts>,
 }
@@ -474,7 +503,10 @@ fn babel_import_text(
             if specifier.import_kind.is_type() {
                 out.push_str("type ");
             }
-            out.push_str(text(specifier.imported.span()));
+            match &specifier.imported {
+                ModuleExportName::StringLiteral(literal) => out.push_str(text(literal.span)),
+                imported => out.push_str(&imported.name()),
+            }
             if !matches!(&specifier.imported, ModuleExportName::IdentifierName(name) if name.name == specifier.local.name)
             {
                 out.push_str(" as ");

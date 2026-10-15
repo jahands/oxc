@@ -20,6 +20,8 @@ pub struct SortableImport<'a> {
     pub has_leading_comment: bool,
     /// Whether a comment follows the import on its line.
     pub has_trailing_comment: bool,
+    /// Lines from the import to the end of its trailing comments.
+    pub trailing_comment_height: u32,
     /// Whether the statement before this one in the source is an import with a trailing comment.
     pub follows_trailing_comment: bool,
     // These are used for sorting and computed by `compute_import_metadata()`
