@@ -226,6 +226,9 @@ pub struct OxcSortImportsOptions {
     pub merge_duplicates: Option<bool>,
     /// Split inline `type` specifiers of a value import into a type import (default: false)
     pub split_type_specifiers: Option<bool>,
+    // JHPATCH: Expose sortImports.combineTypeAndValueImports in the playground
+    /// Let `mergeDuplicates` merge type imports and value imports (default: true)
+    pub combine_type_and_value_imports: Option<bool>,
     /// Add newlines between import groups (default: true)
     pub newlines_between: Option<bool>,
     /// Pattern prefixes for internal imports

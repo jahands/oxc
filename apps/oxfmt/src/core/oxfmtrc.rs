@@ -699,7 +699,8 @@ pub struct SortImportsConfig {
     /// The first import of a source takes in the later ones, with their specifiers after its own
     /// and the comments above them below its own comments.
     /// Value imports merge with value imports and type imports with type imports.
-    /// Without `splitTypeSpecifiers`, type imports also merge with value imports as inline `type` specifiers.
+    /// With `combineTypeAndValueImports` and without `splitTypeSpecifiers`,
+    /// type imports also merge with value imports as inline `type` specifiers.
     ///
     /// These are not merged: an import with a namespace specifier, two imports with a default specifier,
     /// a type import with a default specifier, side effect imports, suppressed imports,
@@ -733,6 +734,24 @@ pub struct SortImportsConfig {
     /// - Default: `false`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub split_type_specifiers: Option<bool>,
+    // JHPATCH: sortImports.combineTypeAndValueImports option to match @ianvs/prettier-plugin-sort-imports below TypeScript 4.5
+    /// Let `mergeDuplicates` merge type imports and value imports of the same source,
+    /// with the type import's named specifiers marked `type`.
+    ///
+    /// `@ianvs/prettier-plugin-sort-imports` turns this off when `importOrderTypeScriptVersion` is below 4.5.0.
+    /// Has no effect with `splitTypeSpecifiers`.
+    ///
+    /// ```js
+    /// // `true`
+    /// import { a, type A } from 'a'
+    /// // `false`
+    /// import { a } from 'a'
+    /// import type { A } from 'a'
+    /// ```
+    ///
+    /// - Default: `true`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub combine_type_and_value_imports: Option<bool>,
     /// Add newlines between groups.
     ///
     /// - Default: `true`

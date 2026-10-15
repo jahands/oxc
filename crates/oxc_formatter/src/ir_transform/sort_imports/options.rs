@@ -40,13 +40,19 @@ pub struct SortImportsOptions {
     // JHPATCH: sortImports.mergeDuplicates and sortImports.splitTypeSpecifiers options
     /// Merge imports of the same source into one declaration,
     /// with the rules of `@ianvs/prettier-plugin-sort-imports`.
-    /// Type imports merge into value imports only without `split_type_specifiers`.
+    /// Type imports merge into value imports only with `combine_type_and_value_imports`
+    /// and without `split_type_specifiers`.
     /// Default is `false`.
     pub merge_duplicates: bool,
     /// Split inline `type` specifiers out of a value import into a type import,
     /// with the rules of `@ianvs/prettier-plugin-sort-imports`.
     /// Default is `false`.
     pub split_type_specifiers: bool,
+    // JHPATCH: sortImports.combineTypeAndValueImports option to match @ianvs/prettier-plugin-sort-imports below TypeScript 4.5
+    /// Let `merge_duplicates` merge type imports and value imports of the same source.
+    /// Has no effect with `split_type_specifiers`.
+    /// Default is `true`.
+    pub combine_type_and_value_imports: bool,
     /// Whether to insert blank lines between different import groups.
     /// - `true`: Insert one blank line between groups (default)
     /// - `false`: No blank lines between groups
@@ -139,6 +145,8 @@ impl Default for SortImportsOptions {
             // JHPATCH: Defaults for sortImports.mergeDuplicates and sortImports.splitTypeSpecifiers
             merge_duplicates: false,
             split_type_specifiers: false,
+            // JHPATCH: Default for sortImports.combineTypeAndValueImports
+            combine_type_and_value_imports: true,
             newlines_between: true,
             internal_pattern: default_internal_patterns(),
             groups: default_groups(),

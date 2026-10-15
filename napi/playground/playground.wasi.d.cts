@@ -217,6 +217,8 @@ export interface OxcSortImportsOptions {
   mergeDuplicates?: boolean
   /** Split inline `type` specifiers of a value import into a type import (default: false) */
   splitTypeSpecifiers?: boolean
+  /** Let `mergeDuplicates` merge type imports and value imports (default: true) */
+  combineTypeAndValueImports?: boolean
   /** Add newlines between import groups (default: true) */
   newlinesBetween?: boolean
   /** Pattern prefixes for internal imports */

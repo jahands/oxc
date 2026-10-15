@@ -174,6 +174,31 @@ import { a, type B } from "x";
 }
 
 #[test]
+fn should_not_merge_type_imports_into_value_imports_without_combine() {
+    let config = r#"{
+  "sortImports": {
+    "mergeDuplicates": true,
+    "combineTypeAndValueImports": false,
+    "sortSpecifiers": true,
+    "newlinesBetween": false
+  }
+}"#;
+    assert_format(
+        r#"
+import { z } from "zod";
+import type { Z } from "zod";
+import { type Y, y } from "zod";
+import type { X } from "zod";
+"#,
+        config,
+        r#"
+import { y, z, type Y } from "zod";
+import type { X, Z } from "zod";
+"#,
+    );
+}
+
+#[test]
 fn should_keep_comments_of_merged_imports() {
     assert_format(
         r#"

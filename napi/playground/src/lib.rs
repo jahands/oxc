@@ -645,6 +645,10 @@ impl Oxc {
                 // JHPATCH: New sortImports options (mergeDuplicates, splitTypeSpecifiers)
                 merge_duplicates: sort_imports_config.merge_duplicates.unwrap_or(false),
                 split_type_specifiers: sort_imports_config.split_type_specifiers.unwrap_or(false),
+                // JHPATCH: New sortImports option (combineTypeAndValueImports)
+                combine_type_and_value_imports: sort_imports_config
+                    .combine_type_and_value_imports
+                    .unwrap_or(true),
                 newlines_between: sort_imports_config.newlines_between.unwrap_or(true),
                 internal_pattern: sort_imports_config
                     .internal_pattern

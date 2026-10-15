@@ -65,7 +65,8 @@ impl ImportRewrites {
 ///
 /// Within a run, the first import of each source takes in the later ones,
 /// value imports first, then type imports.
-/// Value and type imports share one table of first imports only without `split_type_specifiers`;
+/// Value and type imports share one table of first imports only with `combine_type_and_value_imports`
+/// and without `split_type_specifiers`;
 /// a type import that is merged into a value import (or takes one in) has its named specifiers marked `type`.
 /// An import with a namespace specifier, two imports with a default specifier,
 /// and a type import with a default specifier are not merged, and the first import keeps its place in the table.
@@ -132,7 +133,10 @@ pub fn plan_import_rewrites(
     let mut rewrites = FxHashMap::default();
     for mut run in runs {
         if options.merge_duplicates {
-            merge_run(&mut run, !options.split_type_specifiers);
+            merge_run(
+                &mut run,
+                options.combine_type_and_value_imports && !options.split_type_specifiers,
+            );
         }
         for candidate in run {
             if candidate.is_absorbed {
