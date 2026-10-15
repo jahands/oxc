@@ -21,6 +21,7 @@ const CACHES = {
   tailwindPlugin: null as typeof import("prettier-plugin-tailwindcss") | null,
   tailwindSorter: null as typeof import("prettier-plugin-tailwindcss/sorter") | null,
   oxfmtPlugin: null as Plugin | null,
+  mdxPlugin: null as Plugin | null,
 };
 
 async function loadCached<K extends keyof typeof CACHES>(
@@ -93,6 +94,8 @@ export async function formatFile({ code, options }: FormatFileParam): Promise<st
   if ("_useTailwindPlugin" in options) await setupTailwindPlugin(options);
   // This plugin overrides `babel(-ts)` and `typescript` parsers to use `oxc_formatter` instead of built-in parsers
   if ("_oxfmtPluginOptionsJson" in options) await setupOxfmtPlugin(options);
+  // This plugin overrides the `mdx` parser to keep multi-line comments verbatim
+  if (options.parser === "mdx") await setupMdxPlugin(options);
 
   // This is needed to detect tsx-in-vue properly, see `prettier-plugin-oxfmt` for details.
   // All `<script>` blocks in one SFC must share the same `lang` (Vue compiler restriction),
@@ -182,6 +185,8 @@ export async function formatEmbeddedDoc({
   if ("_useAstroPlugin" in options) await setupAstroPlugin(options);
   // Enable Tailwind CSS plugin for embedded code (e.g., html`...` in JS) if needed
   if ("_useTailwindPlugin" in options) await setupTailwindPlugin(options);
+  // Keep multi-line comments verbatim in ` ```mdx ` code blocks in Markdown
+  if (options.parser === "mdx") await setupMdxPlugin(options);
 
   const metadata: Record<string, unknown> = {};
 
@@ -320,4 +325,20 @@ async function setupOxfmtPlugin(options: Options): Promise<void> {
   );
   options.plugins ??= [];
   options.plugins.push(CACHES.oxfmtPlugin);
+}
+
+// ---
+// MDX comment support
+// ---
+
+/**
+ * Load the plugin that overrides the `mdx` parser to keep multi-line comments verbatim.
+ */
+async function setupMdxPlugin(options: Options): Promise<void> {
+  CACHES.mdxPlugin ??= await loadCached(
+    "mdxPlugin",
+    async () => (await import("./prettier-plugin-mdx")) as Plugin,
+  );
+  options.plugins ??= [];
+  options.plugins.push(CACHES.mdxPlugin);
 }
