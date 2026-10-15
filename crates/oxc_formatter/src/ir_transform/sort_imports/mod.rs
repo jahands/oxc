@@ -2,6 +2,7 @@ pub mod collation;
 mod compute_metadata;
 mod group_config;
 mod group_matcher;
+mod hoist;
 pub mod options;
 mod partitioned_chunk;
 mod sortable_imports;
@@ -12,6 +13,8 @@ use oxc_formatter_core::format_element::{
     FormatElement, LineMode,
     tag::{LabelId, Tag},
 };
+
+pub use hoist::hoist_imports;
 
 use crate::{
     JsLabels, SortImportsOptions,
@@ -39,12 +42,27 @@ use crate::{
 ///
 /// # Panics
 /// Panics if `sort_imports` option is not enabled.
-pub fn sort_imports_chunk(formatter: &mut JsFormatter<'_, '_>, chunk_start: usize) {
+pub fn sort_imports_chunk(
+    formatter: &mut JsFormatter<'_, '_>,
+    chunk_start: usize,
+    position: ChunkPosition,
+) {
     let elements = &formatter.elements()[chunk_start..];
     let options = formatter.options().sort_imports.as_ref().unwrap();
 
-    let sorted_elements = transform(elements, options, formatter.allocator());
+    let sorted_elements = transform(elements, options, formatter.allocator(), position);
     formatter.replace_end(chunk_start, &sorted_elements);
+}
+
+/// Where a chunk of `ImportDeclaration`s starts, for the comment rules of `hoist`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ChunkPosition {
+    /// The chunk does not start the program body.
+    Inner,
+    /// The chunk starts the program body, after a hashbang or directives.
+    AfterPrologue,
+    /// The chunk starts the program body, and nothing precedes it but comments.
+    FileStart,
 }
 
 /// An IR transform that sorts import statements according to specified options.
@@ -64,6 +82,7 @@ fn transform<'a>(
     elements: &[FormatElement<'a>],
     options: &SortImportsOptions,
     allocator: &'a Allocator,
+    position: ChunkPosition,
 ) -> ArenaVec<'a, FormatElement<'a>> {
     // Parse string based groups into our internal representation for performance
     let group_matcher = GroupMatcher::new(&options.groups, &options.custom_groups);
@@ -108,25 +127,67 @@ fn transform<'a>(
     // and any `Line(_)` inside is for output positioning, not a real line boundary.
     // e.g. ```import "a"; <StartLineSuffix> Line(Empty) Text("// trailing") <EndLineSuffix>```
     let mut inside_line_suffix = false;
+    // A block comment that starts the file is followed by `Line(SoftOrSpace)`,
+    // which prints as a line break at the top level.
+    // With `hoist`, it splits lines so that the comment can stay at the top.
+    let mut after_top_level_comment = false;
+    // A trailing comment on its own line after the last statement is a line suffix
+    // that starts with a line break. With `hoist`, it is a line of its own,
+    // so that it stays after the imports.
+    let mut inside_own_line_suffix = false;
     let comment_label = LabelId::of(JsLabels::Comment);
     let import_label = LabelId::of(JsLabels::ImportDeclaration);
+    let suppressed_import_label = LabelId::of(JsLabels::SuppressedImportDeclaration);
     for (idx, el) in prev_elements.iter().enumerate() {
         if let FormatElement::Tag(tag) = el {
             match tag {
                 Tag::StartLabelled(id) => {
                     if *id == comment_label {
                         inside_comment = true;
-                    } else if *id == import_label {
+                    } else if *id == import_label || *id == suppressed_import_label {
                         inside_multiline_import = true;
                     }
                 }
-                Tag::StartLineSuffix => inside_line_suffix = true,
-                Tag::EndLineSuffix => inside_line_suffix = false,
+                Tag::StartLineSuffix => {
+                    inside_line_suffix = true;
+                    if options.hoist
+                        && !inside_comment
+                        && !inside_multiline_import
+                        && matches!(
+                            prev_elements.get(idx + 1),
+                            Some(FormatElement::Line(LineMode::Hard | LineMode::Empty))
+                        )
+                    {
+                        inside_own_line_suffix = true;
+                        if current_line_start < idx {
+                            lines.push(SourceLine::from_element_range(
+                                prev_elements,
+                                current_line_start..idx,
+                                LineMode::Hard,
+                            ));
+                        }
+                        current_line_start = idx;
+                    }
+                }
+                Tag::EndLineSuffix => {
+                    inside_line_suffix = false;
+                    if std::mem::take(&mut inside_own_line_suffix) {
+                        lines.push(SourceLine::from_element_range(
+                            prev_elements,
+                            current_line_start..idx + 1,
+                            LineMode::Hard,
+                        ));
+                        current_line_start = idx + 1;
+                    }
+                }
                 Tag::EndLabelled => {
                     // `EndLabelled` doesn't carry the label ID.
                     // Neither label is expected to nest, so this naive reset is sufficient.
                     if inside_comment {
                         inside_comment = false;
+                        after_top_level_comment =
+                            options.hoist && !inside_multiline_import && !inside_line_suffix;
+                        continue;
                     } else if inside_multiline_import {
                         inside_multiline_import = false;
                     }
@@ -135,8 +196,14 @@ fn transform<'a>(
             }
         }
 
+        let ends_line = match el {
+            FormatElement::Line(LineMode::Empty | LineMode::Hard) => true,
+            FormatElement::Line(LineMode::SoftOrSpace) => after_top_level_comment,
+            _ => false,
+        };
+        after_top_level_comment = false;
         if let FormatElement::Line(mode) = el
-            && matches!(mode, LineMode::Empty | LineMode::Hard)
+            && ends_line
         {
             // Don't flush mid-block, the line break is internal to the label.
             if inside_comment || inside_multiline_import || inside_line_suffix {
@@ -237,6 +304,8 @@ fn transform<'a>(
     // After sorting, flatten everything back to `FormatElement`s.
     let mut next_elements = ArenaVec::with_capacity_in(prev_elements.len(), &allocator);
 
+    // With `hoist`, comments before the first import of the file stay at the top.
+    let mut keep_leading_comments_at_top = options.hoist && position != ChunkPosition::Inner;
     let mut chunks_iter = chunks.into_iter().peekable();
     while let Some(chunk) = chunks_iter.next() {
         match chunk {
@@ -268,16 +337,43 @@ fn transform<'a>(
                 // // chunk trailing
                 // ```
                 let (sorted_imports, orphan_contents, trailing_lines, slot_had_leading_blank) =
-                    chunk.into_sorted_import_units(&group_matcher, options);
+                    chunk.into_sorted_import_units(
+                        &group_matcher,
+                        options,
+                        std::mem::take(&mut keep_leading_comments_at_top),
+                    );
 
                 // Output leading orphan content (after_slot: None)
+                let mut leading_orphan_ends_with_comment = false;
+                let mut has_top_comments = false;
                 for orphan in &orphan_contents {
                     if orphan.after_slot.is_none() {
                         for line in &orphan.lines {
                             line.write(prev_elements, &mut next_elements, true);
                         }
+                        leading_orphan_ends_with_comment =
+                            matches!(orphan.lines.last(), Some(SourceLine::CommentOnly(..)));
+                        has_top_comments = options.hoist
+                            && orphan
+                                .lines
+                                .iter()
+                                .any(|line| matches!(line, SourceLine::CommentOnly(..)));
                     }
                 }
+                // With `hoist`, comments kept at the top of the file are separated by a blank line
+                // from the comments of an import sorted to the front.
+                if has_top_comments
+                    && position == ChunkPosition::FileStart
+                    && leading_orphan_ends_with_comment
+                    && sorted_imports.first().is_some_and(|first| !first.leading_lines.is_empty())
+                {
+                    next_elements.push(FormatElement::Line(LineMode::Empty));
+                }
+                // Below comments kept at the top, the first import counts as starting
+                // on the line of the first import in the source, after its own leading lines.
+                let first_source_line_idx =
+                    sorted_imports.iter().map(|import| import.line_idx).min().unwrap_or_default();
+                let mut prev_line_idx = 0;
 
                 // Output sorted import units with orphan content at their slot positions
                 let mut prev_import: Option<&SortableImport> = None;
@@ -310,6 +406,19 @@ fn transform<'a>(
                                 slot_had_leading_blank[slot_idx],
                             )
                     });
+                    // With `hoist`, an import with a trailing comment is followed by a blank line
+                    // when the next import did not start on the line right after it.
+                    let insert_newline = insert_newline
+                        || (options.hoist
+                            && prev_import.is_some_and(|prev| {
+                                sorted_import.line_idx > prev_line_idx + 1
+                                    && prev.has_trailing_comment
+                            }));
+                    prev_line_idx = if slot_idx == 0 && has_top_comments {
+                        first_source_line_idx + sorted_import.leading_lines.len()
+                    } else {
+                        sorted_import.line_idx
+                    };
                     if insert_newline {
                         next_elements.push(FormatElement::Line(LineMode::Empty));
                     }
@@ -320,7 +429,11 @@ fn transform<'a>(
 
                     // Output leading lines and import line
                     for line in &sorted_import.leading_lines {
-                        line.write(prev_elements, &mut next_elements, options.partition_by_newline);
+                        line.write(
+                            prev_elements,
+                            &mut next_elements,
+                            options.partition_by_newline || options.hoist,
+                        );
                     }
                     sorted_import.import_line.write(prev_elements, &mut next_elements, false);
 
@@ -424,6 +537,7 @@ fn should_insert_newline_between(
 /// - none between two ignored imports
 /// - one after a run of ignored imports
 /// - one before a run of ignored imports, unless the run starts with a comment
+///   (or the import before it in the source has a trailing comment)
 ///   and no group boundary after the previous import's group inserts newlines
 fn should_insert_newline_around_side_effect(
     options: &SortImportsOptions,
@@ -440,7 +554,7 @@ fn should_insert_newline_around_side_effect(
         (true, true) => false,
         (true, false) => true,
         (false, _) => {
-            current.leading_lines.is_empty() || {
+            (current.leading_lines.is_empty() && !current.follows_trailing_comment) || {
                 let boundary_count = options.groups.len().saturating_sub(1);
                 (prev.group_idx..boundary_count).any(|idx| {
                     options

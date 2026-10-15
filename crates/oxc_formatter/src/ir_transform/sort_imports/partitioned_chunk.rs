@@ -61,11 +61,15 @@ impl<'a> PartitionedChunk<'a> {
     /// - `slot_had_leading_blank`: For each slot index, whether the original input had
     ///   at least one blank line before that slot. Indexed by slot position
     ///   (which is preserved across sorting), not by the import currently at that slot.
+    ///
+    /// With `keep_leading_comments_at_top`, the comments directly before the first import
+    /// become leading orphan content instead of moving with that import.
     #[must_use]
     pub fn into_sorted_import_units(
         self,
         group_matcher: &GroupMatcher,
         options: &SortImportsOptions,
+        keep_leading_comments_at_top: bool,
     ) -> (Vec<SortableImport<'a>>, Vec<OrphanContent<'a>>, Vec<SourceLine<'a>>, Vec<bool>) {
         let Self::Imports(lines) = self else {
             unreachable!(
@@ -84,13 +88,16 @@ impl<'a> PartitionedChunk<'a> {
         // These attach to the next import as leading lines.
         let mut current_pending: Vec<SourceLine<'a>> = vec![];
 
-        for line in lines {
+        for (line_idx, line) in lines.into_iter().enumerate() {
             match line {
                 SourceLine::Import(_, ref metadata) => {
                     // A blank line in the original source ends up in `orphan_pending`,
                     // so its presence there marks this slot as having a leading blank.
                     slot_had_leading_blank
                         .push(orphan_pending.iter().any(|l| matches!(l, SourceLine::Empty)));
+                    if keep_leading_comments_at_top && sortable_imports.is_empty() {
+                        orphan_pending.append(&mut current_pending);
+                    }
 
                     // Handle orphan content (separated by empty line from this import)
                     // These stay at their original slot position, not attached to any import.
@@ -123,17 +130,28 @@ impl<'a> PartitionedChunk<'a> {
                     }
 
                     let is_side_effect = metadata.is_side_effect;
+                    let has_trailing_comment = metadata.has_trailing_comment;
+                    let follows_trailing_comment =
+                        sortable_imports.last().is_some_and(|prev| prev.has_trailing_comment);
                     let (group_idx, normalized_source, is_ignored) =
                         compute_import_metadata(metadata, group_matcher, options);
 
                     sortable_imports.push(SortableImport {
                         leading_lines: std::mem::take(&mut current_pending),
                         import_line: line,
+                        line_idx,
+                        has_trailing_comment,
+                        follows_trailing_comment,
                         is_side_effect,
                         group_idx,
                         normalized_source,
                         is_ignored,
                     });
+                }
+                // With `hoist`, every comment before an import moves with it,
+                // keeping the empty lines that follow the first comment.
+                SourceLine::Empty if options.hoist && !current_pending.is_empty() => {
+                    current_pending.push(line);
                 }
                 SourceLine::Empty => {
                     // Empty line separates comments from the next import.

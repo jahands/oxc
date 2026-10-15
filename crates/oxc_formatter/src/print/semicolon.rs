@@ -3,9 +3,11 @@ use oxc_formatter_core::Format;
 use oxc_span::GetSpan;
 
 use crate::{
+    JsLabels,
     ast_nodes::{AstNode, AstNodes},
     formatter::{
         JsFormatContext, JsFormatter, JsFormatterExt as _,
+        prelude::{LabelId, format_with, labelled},
         trivia::{FormatTrailingComments, format_leading_comments},
     },
     options::Semicolons,
@@ -285,8 +287,17 @@ pub fn write_suppressed_statement<'a>(
         AstNodes::ExpressionStatement(stmt) => write_leading_comments_with_asi_guard(stmt, true, f),
         _ => format_leading_comments(span).fmt(f),
     }
-    if write_suppressed_content(span, suppressed_statement_content_end(stmt.as_ref(), f), f) {
-        OptionalSemicolon.fmt(f);
+    let content = format_with(|f| {
+        if write_suppressed_content(span, suppressed_statement_content_end(stmt.as_ref(), f), f) {
+            OptionalSemicolon.fmt(f);
+        }
+    });
+    if matches!(stmt.as_ref(), Statement::ImportDeclaration(_))
+        && f.options().sort_imports.is_some()
+    {
+        write!(f, [labelled(LabelId::of(JsLabels::SuppressedImportDeclaration), &content)]);
+    } else {
+        content.fmt(f);
     }
     true
 }

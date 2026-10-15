@@ -32,6 +32,7 @@ fn main() -> Result<(), String> {
         ignore_case,
         collation: SortCollation::Natural,
         sort_specifiers: false,
+        hoist: false,
         newlines_between,
         internal_pattern: default_internal_patterns(),
         groups: default_groups(),

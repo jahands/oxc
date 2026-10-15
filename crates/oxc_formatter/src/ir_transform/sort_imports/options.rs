@@ -11,7 +11,8 @@ pub struct SortImportsOptions {
     /// Partition imports by comments.
     /// Default is `false`.
     pub partition_by_comment: bool,
-    /// Partition imports by side effect imports that keep their position.
+    /// Partition imports by side effect imports that keep their position,
+    /// and by suppressed imports.
     /// Default is `false`.
     pub partition_by_side_effect: bool,
     /// Sort side effects imports.
@@ -29,6 +30,11 @@ pub struct SortImportsOptions {
     /// Sort named specifiers inside `{ ... }`.
     /// Default is `false`.
     pub sort_specifiers: bool,
+    /// Move every top-level import into one block at the top of the file,
+    /// with comments placed the way `@ianvs/prettier-plugin-sort-imports` places them.
+    /// Imports inside `declare module` blocks are not sorted.
+    /// Default is `false`.
+    pub hoist: bool,
     /// Whether to insert blank lines between different import groups.
     /// - `true`: Insert one blank line between groups (default)
     /// - `false`: No blank lines between groups
@@ -115,6 +121,7 @@ impl Default for SortImportsOptions {
             ignore_case: true,
             collation: SortCollation::default(),
             sort_specifiers: false,
+            hoist: false,
             newlines_between: true,
             internal_pattern: default_internal_patterns(),
             groups: default_groups(),

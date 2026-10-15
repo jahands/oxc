@@ -43,10 +43,11 @@ pub fn compute_import_metadata<'a>(
     let should_regroup_side_effect = group_matcher.should_regroup_side_effect();
     let should_regroup_side_effect_style = group_matcher.should_regroup_side_effect_style();
 
-    let is_ignored = !options.sort_side_effects
-        && metadata.is_side_effect
-        && !should_regroup_side_effect
-        && (!is_style_import || !should_regroup_side_effect_style);
+    let is_ignored = metadata.is_suppressed
+        || (!options.sort_side_effects
+            && metadata.is_side_effect
+            && !should_regroup_side_effect
+            && (!is_style_import || !should_regroup_side_effect_style));
 
     (group_idx, normalized_source, is_ignored)
 }

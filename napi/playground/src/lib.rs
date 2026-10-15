@@ -623,6 +623,7 @@ impl Oxc {
                 ignore_case: sort_imports_config.ignore_case.unwrap_or(true),
                 collation: SortCollation::Natural,
                 sort_specifiers: false,
+                hoist: false,
                 newlines_between: sort_imports_config.newlines_between.unwrap_or(true),
                 internal_pattern: sort_imports_config
                     .internal_pattern

@@ -6,9 +6,9 @@ use oxc_span::GetSpan;
 
 use crate::{
     Format,
-    ast_nodes::AstNode,
+    ast_nodes::{AstNode, AstNodes},
     formatter::{prelude::*, trivia::FormatTrailingComments},
-    ir_transform::sort_imports_chunk,
+    ir_transform::{ChunkPosition, sort_imports_chunk},
     print::semicolon::{OptionalSemicolon, suppressed_statement_content_end},
     utils::{
         is_dropped_statement, statement_span,
@@ -73,25 +73,43 @@ impl<'a> Deref for FormatStatementsWithImports<'a, '_> {
 
 impl<'a> Format<'a, JsFormatContext<'a>> for FormatStatementsWithImports<'a, '_> {
     fn fmt(&self, f: &mut JsFormatter<'_, 'a>) {
-        let import_sort_enabled = f.options().sort_imports.is_some();
+        let program_position = match self.parent() {
+            AstNodes::Program(program)
+                if program.hashbang.is_some() || !program.directives.is_empty() =>
+            {
+                ChunkPosition::AfterPrologue
+            }
+            AstNodes::Program(_) => ChunkPosition::FileStart,
+            _ => ChunkPosition::Inner,
+        };
+        // With `hoist`, only the imports of the program body are sorted.
+        let import_sort_enabled = f
+            .options()
+            .sort_imports
+            .as_ref()
+            .is_some_and(|options| !options.hoist || program_position != ChunkPosition::Inner);
 
         let mut join = f.join_nodes_with_hardline();
 
         let mut stmts_iter = self.iter().filter(|stmt| !is_dropped_statement(stmt.as_ref()));
+        let mut is_first = true;
         while let Some(mut stmt) = stmts_iter.next() {
-            // Suppressed imports are emitted verbatim and act as partition boundaries,
-            // so they are excluded from the sortable run.
+            // Suppressed imports are emitted verbatim. They act as partition boundaries,
+            // or with `partition_by_side_effect`, as imports that keep their position.
             if import_sort_enabled
                 && matches!(stmt.as_ref(), Statement::ImportDeclaration(_))
-                && !is_import_suppressed(stmt, join.fmt())
+                && (keeps_suppressed_imports(join.fmt()) || !is_import_suppressed(stmt, join.fmt()))
             {
-                let next_stmt = format_import_decls_with_sort(stmt, &mut stmts_iter, &mut join);
+                let position = if is_first { program_position } else { ChunkPosition::Inner };
+                let next_stmt =
+                    format_import_decls_with_sort(stmt, &mut stmts_iter, &mut join, position);
                 match next_stmt {
                     Some(next_stmt) => stmt = next_stmt,
                     None => break,
                 }
             }
 
+            is_first = false;
             join.entry(statement_span(stmt.as_ref()), stmt);
         }
     }
@@ -115,6 +133,7 @@ fn format_import_decls_with_sort<'a, 'iter>(
     stmt: &AstNode<'a, Statement<'a>>,
     stmts_iter: &mut impl Iterator<Item = &'iter AstNode<'a, Statement<'a>>>,
     join: &mut JoinNodesBuilder<'_, '_, 'a, Line>,
+    position: ChunkPosition,
 ) -> Option<&'iter AstNode<'a, Statement<'a>>> {
     // Output inter-statement separator separately, so `chunk_start` points
     // to start of IR for the `ImportDeclaration` itself
@@ -125,13 +144,13 @@ fn format_import_decls_with_sort<'a, 'iter>(
     join.entry_no_separator(stmt);
 
     // The first import was already written above, so start the count at 1.
-    // A suppressed `ImportDeclaration` ends the run:
-    // its verbatim IR has no `JsLabels::ImportDeclaration` label, so the sort transform can't see it as an import.
+    // A suppressed `ImportDeclaration` ends the run unless `partition_by_side_effect` keeps it in place.
+    let keeps_suppressed = keeps_suppressed_imports(join.fmt());
     let mut count = 1;
     let mut next_stmt = None;
     for stmt in stmts_iter {
         if let Statement::ImportDeclaration(decl) = stmt.as_ref() {
-            if is_import_suppressed(stmt, join.fmt()) {
+            if !keeps_suppressed && is_import_suppressed(stmt, join.fmt()) {
                 next_stmt = Some(stmt);
                 break;
             }
@@ -145,10 +164,16 @@ fn format_import_decls_with_sort<'a, 'iter>(
 
     // A single-import run is already in order, so skip the transform.
     if count >= 2 {
-        sort_imports_chunk(join.fmt_mut(), chunk_start);
+        sort_imports_chunk(join.fmt_mut(), chunk_start, position);
     }
 
     next_stmt
+}
+
+/// With `partition_by_side_effect`, suppressed imports stay in the sortable run,
+/// where they keep their position like side effect imports.
+fn keeps_suppressed_imports(f: &JsFormatter<'_, '_>) -> bool {
+    f.options().sort_imports.as_ref().is_some_and(|options| options.partition_by_side_effect)
 }
 
 /// An `ImportDeclaration` is suppressed if it has a leading or trailing suppression comment,
