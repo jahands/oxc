@@ -7,7 +7,8 @@ use std::str::FromStr;
 
 use oxc_formatter::{
     ArrowParentheses, AttributePosition, BracketSameLine, BracketSpacing, Expand, JsFormatOptions,
-    JsdocOptions, OperatorPosition, QuoteProperties, QuoteStyle, Semicolons, TrailingCommas,
+    JsdocOptions, OperatorPosition, PrettierCompat, QuoteProperties, QuoteStyle, Semicolons,
+    TrailingCommas,
 };
 use oxc_formatter_tests::{OptionSet, apply_core_options};
 
@@ -95,6 +96,12 @@ pub fn apply_js_options(options: &mut JsFormatOptions, json: &OptionSet) {
             "experimentalOperatorPosition" => {
                 if let Some(s) = value.as_str() {
                     options.operator_position = OperatorPosition::from_str(s).unwrap_or_default();
+                }
+            }
+            // NOTE: Not a Prettier option
+            "prettierCompat" => {
+                if let Some(s) = value.as_str() {
+                    options.prettier_compat = PrettierCompat::from_str(s).ok();
                 }
             }
             // NOTE: Not a Prettier option

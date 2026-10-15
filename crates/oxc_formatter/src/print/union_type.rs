@@ -1,6 +1,7 @@
 //! NOTE: This printer deliberately stays on Prettier 3.8-style expansion (one member per line with leading `|`)
 //! and will probably NOT follow Prettier 3.9's fit-to-width rewrite
-//! (prettier#18827: collapse when it fits, conditional-type `? |` hugging).
+//! (prettier#18827: collapse when it fits, conditional-type `? |` hugging) by default;
+//! `prettier_compat: Some(PrettierCompat::V3_9)` opts into it (DIVERGENCES.md#union-annotation-flat-retry).
 //!
 //! Not final yet, but that is the working assumption:
 //! the per-member layout is the diff-friendly output, and the rewrite is still contested upstream (prettier#19733, open).
@@ -24,6 +25,7 @@ use crate::{
             is_jsdoc_comment,
         },
     },
+    options::PrettierCompat,
     parentheses::NeedsParentheses,
     print::FormatWrite,
     utils::{suppressed::write_suppressed_expression, typescript::should_hug_type},
@@ -176,6 +178,10 @@ impl<'a> FormatWrite<'a> for AstNode<'a, TSUnionType<'a>> {
             _ => false,
         };
 
+        // Prettier 3.9 (prettier#18827): the members get a group of their own, so a union that breaks out of its position
+        // first retries flat on the indented next line, and a conditional-type branch carries no indent of its own.
+        let fits_on_next_line = matches!(f.options().prettier_compat, Some(PrettierCompat::V3_9));
+
         let should_indent = {
             let parent = union_type_at_top.parent();
 
@@ -198,14 +204,15 @@ impl<'a> FormatWrite<'a> for AstNode<'a, TSUnionType<'a>> {
                 | AstNodes::TSTypeParameterInstantiation(_) => false,
                 // A check/extends-position union falls through to `_ => true`
                 AstNodes::TSConditionalType(_) if is_conditional_branch => {
-                    before_pipe_comments.is_empty()
+                    !fits_on_next_line && before_pipe_comments.is_empty()
                 }
                 _ => true,
             }
         };
 
-        let types = format_with(|f| {
-            let leading_soft_line_break_or_space = should_indent && before_pipe_comments.is_empty();
+        let members = format_with(|f| {
+            let leading_soft_line_break_or_space =
+                !fits_on_next_line && should_indent && before_pipe_comments.is_empty();
 
             let separator = format_with(|f| {
                 if leading_soft_line_break_or_space {
@@ -219,13 +226,28 @@ impl<'a> FormatWrite<'a> for AstNode<'a, TSUnionType<'a>> {
             format_union_types(types, suppressed_node_span, false, f);
         });
 
+        let types = format_with(|f| {
+            if fits_on_next_line {
+                write!(f, [group(&members)]);
+            } else {
+                write!(f, [members]);
+            }
+        });
+
         let content = format_with(|f| {
             // it is necessary to add parentheses for unions in intersections
             // ```ts
             // type Some = B & (C | A) & D
             // ```
             if self.needs_parentheses(f) {
-                return write!(f, [indent(&types), soft_line_break()]);
+                let leading_soft_line_break = fits_on_next_line && before_pipe_comments.is_empty();
+                return write!(
+                    f,
+                    [
+                        indent(&format_args!(leading_soft_line_break.then(soft_line_break), types)),
+                        soft_line_break()
+                    ]
+                );
             }
 
             let is_inside_complex_tuple_type = match self.parent() {
@@ -268,10 +290,14 @@ impl<'a> FormatWrite<'a> for AstNode<'a, TSUnionType<'a>> {
             let breaks_before_comments = (has_own_line_comment
                 || (comment_info.has_end_of_line_comment && only_type))
                 && !is_conditional_branch;
+            let breaks_before_members = fits_on_next_line
+                && should_indent
+                && before_pipe_comments.is_empty()
+                && !self.needs_parentheses(f);
             write!(
                 f,
                 [
-                    breaks_before_comments.then(soft_line_break),
+                    (breaks_before_comments || breaks_before_members).then(soft_line_break),
                     FormatLeadingComments::Comments(before_pipe_comments),
                     group(&content)
                 ]

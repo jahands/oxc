@@ -472,7 +472,8 @@ mod tests_to_prettier {
                 "sortImports": true,
                 "sortPackageJson": true,
                 "sortTailwindcss": true,
-                "jsdoc": true
+                "jsdoc": true,
+                "prettierCompat": "3.9"
             }"#,
         );
         let value = to_prettier(&config);
@@ -487,6 +488,7 @@ mod tests_to_prettier {
             "sortTailwindcss",
             "experimentalTailwindcss",
             "jsdoc",
+            "prettierCompat",
             "overrides",
             "ignorePatterns",
             "experimentalTernaries",

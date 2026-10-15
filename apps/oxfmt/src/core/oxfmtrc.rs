@@ -304,6 +304,16 @@ pub struct FormatConfig {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub jsdoc: Option<JsdocUserConfig>,
 
+    /// Follow a newer Prettier version's output where Oxfmt deliberately keeps an earlier Prettier style.
+    ///
+    /// - `"3.9"`: a union type that does not fit on the line first retries flat on the indented next line,
+    ///   and only then breaks one member per line; a union in a conditional type branch starts behind `? ` / `: `
+    ///
+    /// - Languages: JS, JSX, TS, TSX
+    /// - Default: Disabled
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prettier_compat: Option<PrettierCompatConfig>,
+
     /// Options for `prettier-plugin-svelte`.
     ///
     /// Pass `true` or an object to enable `.svelte` file formatting, `false` to disable (handy in overrides).
@@ -460,6 +470,12 @@ pub enum ObjectWrapConfig {
 pub enum OperatorPositionConfig {
     Start,
     End,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, JsonSchema)]
+pub enum PrettierCompatConfig {
+    #[serde(rename = "3.9")]
+    V3_9,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, JsonSchema)]

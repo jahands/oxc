@@ -120,6 +120,15 @@
       },
       "markdownDescription": "File-specific overrides.\nWhen a file matches multiple overrides, the later override takes precedence (array order matters).\n\n- Default: `[]`"
     },
+    "prettierCompat": {
+      "description": "Follow a newer Prettier version's output where Oxfmt deliberately keeps an earlier Prettier style.\n\n- `\"3.9\"`: a union type that does not fit on the line first retries flat on the indented next line,\nand only then breaks one member per line; a union in a conditional type branch starts behind `? ` / `: `\n\n- Languages: JS, JSX, TS, TSX\n- Default: Disabled",
+      "allOf": [
+        {
+          "$ref": "#/definitions/PrettierCompatConfig"
+        }
+      ],
+      "markdownDescription": "Follow a newer Prettier version's output where Oxfmt deliberately keeps an earlier Prettier style.\n\n- `\"3.9\"`: a union type that does not fit on the line first retries flat on the indented next line,\nand only then breaks one member per line; a union in a conditional type branch starts behind `? ` / `: `\n\n- Languages: JS, JSX, TS, TSX\n- Default: Disabled"
+    },
     "printWidth": {
       "description": "Specify the line length that the printer will wrap on.\n\nIf you don't want line wrapping when formatting Markdown, you can set the `proseWrap` option to disable it.\n\n- Languages: All\n- Default: `100`\n- Overrides `.editorconfig.max_line_length`",
       "type": "integer",
@@ -449,6 +458,15 @@
             }
           ],
           "markdownDescription": "How to wrap object literals when they could fit on one line or span multiple lines.\n\nBy default, formats objects as multi-line if there is a newline prior to the first property.\nAuthors can use this heuristic to contextually improve readability, though it has some downsides.\n\n- Languages: JS, JSX, TS, TSX, JSON, JSONC, JSON5\n- Default: `\"preserve\"`"
+        },
+        "prettierCompat": {
+          "description": "Follow a newer Prettier version's output where Oxfmt deliberately keeps an earlier Prettier style.\n\n- `\"3.9\"`: a union type that does not fit on the line first retries flat on the indented next line,\nand only then breaks one member per line; a union in a conditional type branch starts behind `? ` / `: `\n\n- Languages: JS, JSX, TS, TSX\n- Default: Disabled",
+          "allOf": [
+            {
+              "$ref": "#/definitions/PrettierCompatConfig"
+            }
+          ],
+          "markdownDescription": "Follow a newer Prettier version's output where Oxfmt deliberately keeps an earlier Prettier style.\n\n- `\"3.9\"`: a union type that does not fit on the line first retries flat on the indented next line,\nand only then breaks one member per line; a union in a conditional type branch starts behind `? ` / `: `\n\n- Languages: JS, JSX, TS, TSX\n- Default: Disabled"
         },
         "printWidth": {
           "description": "Specify the line length that the printer will wrap on.\n\nIf you don't want line wrapping when formatting Markdown, you can set the `proseWrap` option to disable it.\n\n- Languages: All\n- Default: `100`\n- Overrides `.editorconfig.max_line_length`",
@@ -811,6 +829,12 @@
           "markdownDescription": "Format options to apply for matched files.\nAccepts the same options as the top-level format options."
         }
       }
+    },
+    "PrettierCompatConfig": {
+      "type": "string",
+      "enum": [
+        "3.9"
+      ]
     },
     "ProseWrapConfig": {
       "type": "string",
