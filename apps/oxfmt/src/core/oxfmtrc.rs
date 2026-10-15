@@ -1362,6 +1362,14 @@ pub struct TomlConfig {
     /// - Default: `false`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reorder_keys: Option<bool>,
+    // JHPATCH: toml.trimLeadingBlankLines, which prettier-plugin-toml always does
+    /// Remove the blank lines at the start of the file.
+    ///
+    /// `prettier-plugin-toml` has no such option and always removes them.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trim_leading_blank_lines: Option<bool>,
 }
 
 // ---

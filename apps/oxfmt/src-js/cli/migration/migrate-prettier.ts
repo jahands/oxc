@@ -439,11 +439,12 @@ const TOML_OPTION_MAPPING: Record<string, string> = Object.fromEntries(
   ].map((key) => [key, key]),
 );
 
-// JHPATCH: prettier-plugin-toml defaults that differ from Oxfmt's; Taplo always aligns single comments
+// JHPATCH: prettier-plugin-toml defaults that differ from Oxfmt's; Taplo always aligns single comments, the plugin trims the input
 const TOML_PLUGIN_DEFAULTS = {
   alignComments: true,
   alignSingleComments: true,
   allowedBlankLines: 1,
+  trimLeadingBlankLines: true,
 };
 
 const NAMESPACED_PLUGINS = [

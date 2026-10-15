@@ -43,6 +43,9 @@ pub struct TomlFormatOptions {
     pub reorder_keys: bool,
     /// The maximum number of consecutive blank lines.
     pub allowed_blank_lines: usize,
+    // JHPATCH: toml.trimLeadingBlankLines, which prettier-plugin-toml always does with `code.trim()`
+    /// Remove the blank lines at the start of the file.
+    pub trim_leading_blank_lines: bool,
 }
 
 // JHPATCH: oxc-toml's defaults for the toml options
@@ -66,6 +69,8 @@ impl Default for TomlFormatOptions {
             indent_entries: false,
             reorder_keys: false,
             allowed_blank_lines: 2,
+            // JHPATCH: Default for toml.trimLeadingBlankLines
+            trim_leading_blank_lines: false,
         }
     }
 }

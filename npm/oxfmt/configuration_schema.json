@@ -1236,6 +1236,11 @@
           "description": "Alphabetically reorder keys that are not separated by blank lines.\n\n- Default: `false`",
           "type": "boolean",
           "markdownDescription": "Alphabetically reorder keys that are not separated by blank lines.\n\n- Default: `false`"
+        },
+        "trimLeadingBlankLines": {
+          "description": "Remove the blank lines at the start of the file.\n\n`prettier-plugin-toml` has no such option and always removes them.\n\n- Default: `false`",
+          "type": "boolean",
+          "markdownDescription": "Remove the blank lines at the start of the file.\n\n`prettier-plugin-toml` has no such option and always removes them.\n\n- Default: `false`"
         }
       }
     },

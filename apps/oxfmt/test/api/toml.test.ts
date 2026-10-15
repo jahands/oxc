@@ -75,6 +75,18 @@ describe("TOML files (oxc_formatter_toml)", () => {
     `);
   });
 
+  it("should remove leading blank lines with trimLeadingBlankLines", async () => {
+    const source = "\n\n# c\nx = 1\n";
+    const result = await format("a.toml", source, { toml: { trimLeadingBlankLines: true } });
+    expect(result.errors).toStrictEqual([]);
+    expect(result.code).toBe("# c\nx = 1\n");
+
+    const markdown = "```toml\n\n\nx = 1\n```\n";
+    const embedded = await format("a.md", markdown, { toml: { trimLeadingBlankLines: true } });
+    expect(embedded.errors).toStrictEqual([]);
+    expect(embedded.code).toBe("```toml\nx = 1\n```\n");
+  });
+
   it("should apply toml options to Markdown code blocks", async () => {
     const source = "```toml\na = 1\nbbbbb = 2\n```\n";
     const result = await format("a.md", source, { toml: { alignEntries: true } });

@@ -1273,5 +1273,13 @@ export interface TomlConfig {
    * - Default: `false`
    */
   reorderKeys?: boolean;
+  /**
+   * Remove the blank lines at the start of the file.
+   *
+   * `prettier-plugin-toml` has no such option and always removes them.
+   *
+   * - Default: `false`
+   */
+  trimLeadingBlankLines?: boolean;
   [k: string]: unknown;
 }
