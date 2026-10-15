@@ -17,7 +17,7 @@ pub struct MarkdownFormatOptions {
     /// Preferred quote for re-quotable titles. Mirrors Prettier's `singleQuote`.
     pub single_quote: SingleQuote,
     /// Continuation lines of a multi-line code span start at column 0, without the containers'
-    /// indention or `>` markers (lazy continuation lines, as Prettier prints them),
+    /// indentation or `>` markers (lazy continuation lines, as Prettier prints them),
     /// when none of them starts with whitespace.
     pub lazy_code_span_continuation: bool,
 }
