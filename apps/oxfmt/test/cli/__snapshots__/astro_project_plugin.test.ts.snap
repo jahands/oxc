@@ -1,0 +1,71 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`\`astro.useProjectPlugin\` > should format with the plugin installed in the project 1`] = `
+"---
+import a from "a";
+import b from "b";
+const items = ["one", "two"];
+const showImage = true;
+---
+
+<html lang="en">
+  <body class="min-h-screen bg-white text-black antialiased sm:px-4 dark:bg-black dark:text-white">
+    {/* A comment */}
+    <main>
+      {
+        showImage && (
+          <img src="/image.png" alt="An image with a description long enough to break the line" />
+        )
+      }
+      <ul>{items.map((item) => <li class="flex p-2">{item}</li>)}</ul>
+      <a href="/" class="text-sm hover:underline">home <span>icon</span></a>
+    </main>
+    <script>
+      const x = 1;
+    </script>
+    <style>
+      main {
+        color: red;
+      }
+    </style>
+  </body>
+</html>
+"
+`;
+
+exports[`\`astro.useProjectPlugin\` > should format with the plugin installed in the project 2`] = `
+"---
+import a from "a";
+import b from "b";
+const items = ["one", "two"];
+const showImage = true;
+---
+
+<html lang="en">
+  <body class="min-h-screen bg-white text-black antialiased sm:px-4 dark:bg-black dark:text-white">
+    {/* A comment */}
+    <main>
+      {showImage && (
+        <img src="/image.png" alt="An image with a description long enough to break the line" />
+      )}
+      <ul>
+        {items.map((item) => (
+          <li class="flex p-2">{item}</li>
+        ))}
+      </ul>
+      <a href="/" class="text-sm hover:underline">
+        home <span>icon</span>
+      </a>
+    </main>
+    <script>
+      const x = 1;
+    </script>
+    <style>
+      main {
+        color: red;
+      }
+    </style>
+  </body>
+</html>
+"
+`;

@@ -1,5 +1,0 @@
-{
-  "astro": { "useProjectPlugin": true },
-  "sortImports": {},
-  "sortTailwindcss": {}
-}
