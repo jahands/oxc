@@ -1,5 +1,5 @@
 {
   "sortPackageJson": {
-    "order": "sort-package-json"
+    "preset": "sort-package-json"
   }
 }

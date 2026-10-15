@@ -5,7 +5,7 @@ use oxc_formatter_json::{
 
 use super::super::oxfmtrc::{
     FormatConfig, ObjectWrapConfig, QuotePropsConfig, SortPackageJsonConfig,
-    SortPackageJsonOrderConfig, SortPackageJsonUserConfig, TrailingCommaConfig,
+    SortPackageJsonPresetConfig, SortPackageJsonUserConfig, TrailingCommaConfig,
 };
 
 /// Convert `FormatConfig` into `JsonFormatOptions` for `oxc_formatter_json`.
@@ -72,11 +72,11 @@ pub fn to_sort_package_json(config: &FormatConfig) -> Option<sort_package_json::
     Some(
         sort_package_json::SortOptions::new()
             .with_sort_scripts(sort_config.sort_scripts.unwrap_or(false))
-            .with_order(match sort_config.order {
-                None | Some(SortPackageJsonOrderConfig::Oxfmt) => {
+            .with_order(match sort_config.preset {
+                None | Some(SortPackageJsonPresetConfig::Oxfmt) => {
                     sort_package_json::SortOrder::Default
                 }
-                Some(SortPackageJsonOrderConfig::SortPackageJson) => {
+                Some(SortPackageJsonPresetConfig::SortPackageJson) => {
                     sort_package_json::SortOrder::SortPackageJson
                 }
             })

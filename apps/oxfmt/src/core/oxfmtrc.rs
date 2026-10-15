@@ -272,7 +272,7 @@ pub struct FormatConfig {
     ///
     /// The default order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),
     /// but we believe it is clearer and easier to navigate.
-    /// Set `order` to `"sort-package-json"` for the order prettier-plugin-packagejson produces.
+    /// Set `preset` to `"sort-package-json"` for the order prettier-plugin-packagejson produces.
     ///
     /// - Languages: JSON (`package.json` only)
     /// - Default: `true`
@@ -907,19 +907,19 @@ pub struct SortPackageJsonConfig {
     /// The field order and nested sorting rules.
     ///
     /// - `"oxfmt"`: Oxfmt's own order.
-    /// - `"sort-package-json"`: the order of the [sort-package-json](https://github.com/keithamus/sort-package-json) npm package 3.5.0,
+    /// - `"sort-package-json"`: The order of the [sort-package-json](https://github.com/keithamus/sort-package-json) npm package 3.5.0,
     ///   which prettier-plugin-packagejson uses. `sortScripts` has no effect:
     ///   `scripts` are sorted with `pre<name>` and `post<name>` next to `<name>`,
     ///   unless an `npm-run-all` script runs a glob sequentially.
     ///
     /// - Default: `"oxfmt"`
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub order: Option<SortPackageJsonOrderConfig>,
+    pub preset: Option<SortPackageJsonPresetConfig>,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
-pub enum SortPackageJsonOrderConfig {
+pub enum SortPackageJsonPresetConfig {
     Oxfmt,
     SortPackageJson,
 }

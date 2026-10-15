@@ -5,7 +5,7 @@
       "files": ["package.json"],
       "options": {
         "sortPackageJson": {
-          "order": "sort-package-json"
+          "preset": "sort-package-json"
         }
       }
     }

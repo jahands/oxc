@@ -16,7 +16,7 @@ describe("Sort package.json fields", () => {
     expect(result2.errors).toStrictEqual([]);
   });
 
-  it('should use the sort-package-json order with `order: "sort-package-json"`', async () => {
+  it('should use the sort-package-json order with `preset: "sort-package-json"`', async () => {
     const pkgJSON = JSON.stringify({
       type: "module",
       sideEffects: false,
@@ -25,7 +25,7 @@ describe("Sort package.json fields", () => {
       keywords: ["b", "a"],
     });
     const result1 = await format("package.json", pkgJSON, {
-      sortPackageJson: { order: "sort-package-json" },
+      sortPackageJson: { preset: "sort-package-json" },
     });
     expect(result1.code).toBe(
       `{\n  "keywords": [\n    "b",\n    "a"\n  ],\n  "sideEffects": false,\n  "type": "module",\n  "exports": "./index.js",\n  "main": "./index.js"\n}\n`,
