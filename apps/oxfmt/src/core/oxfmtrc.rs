@@ -356,6 +356,17 @@ impl FormatConfig {
         matches!(self.astro, Some(AstroUserConfig::Bool(true) | AstroUserConfig::Object(_)))
     }
 
+    /// Whether import sorting is enabled by this config.
+    ///
+    /// Enabled when `sortImports` is set to `true` or an object;
+    /// disabled when unset or `false`.
+    pub fn is_sort_imports_enabled(&self) -> bool {
+        matches!(
+            self.sort_imports,
+            Some(SortImportsUserConfig::Bool(true) | SortImportsUserConfig::Object(_))
+        )
+    }
+
     /// Whether Tailwind class sorting is enabled by this config.
     ///
     /// Enabled when `sortTailwindcss` is set to `true` or an object;
