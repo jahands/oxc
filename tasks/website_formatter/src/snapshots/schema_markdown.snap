@@ -122,6 +122,18 @@ Whether to skip formatting the frontmatter.
 - Default: `false`
 
 
+### astro.useProjectPlugin
+
+type: `boolean`
+
+
+Whether to use the `prettier-plugin-astro` installed in your project (e.g. `0.14.x`) instead of the bundled version.
+It is resolved from the directory of the config file (the current working directory for the Node.js API).
+Formatting fails if it cannot be resolved.
+
+- Default: `false`
+
+
 ## bracketSameLine
 
 type: `boolean`

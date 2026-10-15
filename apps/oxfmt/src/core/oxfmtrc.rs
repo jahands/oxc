@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -386,6 +386,16 @@ impl FormatConfig {
                     utils::normalize_relative_path(base_dir, path).to_string_lossy().to_string(),
                 );
             }
+        }
+    }
+
+    /// Record `base_dir` as the directory `prettier-plugin-astro` is resolved from,
+    /// when `astro.useProjectPlugin` is enabled.
+    pub fn resolve_astro_plugin_dir(&mut self, base_dir: &Path) {
+        if let Some(AstroUserConfig::Object(ref mut astro)) = self.astro
+            && astro.use_project_plugin == Some(true)
+        {
+            astro.project_plugin_dir = Some(base_dir.to_path_buf());
         }
     }
 
@@ -1025,6 +1035,17 @@ pub struct AstroConfig {
     /// - Default: `"jsx"`
     #[serde(rename = "compressHTML", skip_serializing_if = "Option::is_none")]
     pub compress_html: Option<AstroCompressHtmlConfig>,
+    /// Whether to use the `prettier-plugin-astro` installed in your project (e.g. `0.14.x`) instead of the bundled version.
+    /// It is resolved from the directory of the config file (the current working directory for the Node.js API).
+    /// Formatting fails if it cannot be resolved.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub use_project_plugin: Option<bool>,
+    /// Directory `prettier-plugin-astro` is resolved from when `use_project_plugin` is enabled.
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub project_plugin_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, JsonSchema)]

@@ -386,6 +386,14 @@ export interface AstroConfig {
    * - Default: `false`
    */
   skipFrontmatter?: boolean;
+  /**
+   * Whether to use the `prettier-plugin-astro` installed in your project (e.g. `0.14.x`) instead of the bundled version.
+   * It is resolved from the directory of the config file (the current working directory for the Node.js API).
+   * Formatting fails if it cannot be resolved.
+   *
+   * - Default: `false`
+   */
+  useProjectPlugin?: boolean;
   [k: string]: unknown;
 }
 export interface JsdocConfig {

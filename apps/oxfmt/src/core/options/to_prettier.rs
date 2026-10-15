@@ -282,8 +282,13 @@ fn inject_svelte_plugin_payload(opts: &mut Value, config: &FormatConfig) {
 ///
 /// See: <https://github.com/withastro/prettier-plugin-astro#configuration>
 fn inject_astro_plugin_payload(opts: &mut Value, config: &FormatConfig) {
-    let Some(AstroConfig { allow_shorthand, skip_frontmatter, compress_html }) =
-        config.astro.clone().and_then(AstroUserConfig::into_config)
+    let Some(AstroConfig {
+        allow_shorthand,
+        skip_frontmatter,
+        compress_html,
+        use_project_plugin: _,
+        project_plugin_dir,
+    }) = config.astro.clone().and_then(AstroUserConfig::into_config)
     else {
         return;
     };
@@ -303,6 +308,12 @@ fn inject_astro_plugin_payload(opts: &mut Value, config: &FormatConfig) {
                 AstroCompressHtmlConfig::Html => "html",
                 AstroCompressHtmlConfig::None => "none",
             }),
+        );
+    }
+    if let Some(dir) = project_plugin_dir {
+        map.insert(
+            "_astroProjectPluginDir".to_string(),
+            Value::from(dir.to_string_lossy().into_owned()),
         );
     }
     map.insert("_useAstroPlugin".to_string(), Value::Number(1.into()));
@@ -516,5 +527,34 @@ mod tests_to_prettier {
         assert!(!obj.contains_key("filepath"));
         assert!(!obj.contains_key("parser"));
         assert!(!obj.contains_key("_oxfmtPluginOptionsJson"));
+    }
+
+    #[cfg(feature = "napi")]
+    #[test]
+    fn injects_astro_project_plugin_dir_only_when_enabled() {
+        let astro_opts = |json: &str| {
+            let mut config = config_from(json);
+            config.resolve_astro_plugin_dir(Path::new("/project"));
+            let mut value = to_prettier(&config);
+            inject_opt_in_plugin_payloads(&mut value, PrettierLanguage::Astro, &config);
+            value
+        };
+
+        let value = astro_opts(r#"{ "astro": { "useProjectPlugin": true } }"#);
+        assert_eq!(
+            value.get("_astroProjectPluginDir"),
+            Some(&Value::from(Path::new("/project").to_string_lossy().into_owned()))
+        );
+        assert_eq!(value.get("_useAstroPlugin"), Some(&Value::from(1)));
+
+        for json in [
+            r#"{ "astro": true }"#,
+            r#"{ "astro": {} }"#,
+            r#"{ "astro": { "useProjectPlugin": false } }"#,
+        ] {
+            let value = astro_opts(json);
+            assert!(value.get("_astroProjectPluginDir").is_none(), "{json}");
+            assert_eq!(value.get("_useAstroPlugin"), Some(&Value::from(1)), "{json}");
+        }
     }
 }

@@ -252,6 +252,7 @@ pub fn resolve_for_api(
     let mut format_config: FormatConfig =
         serde_json::from_value(raw_config).map_err(|err| err.to_string())?;
     format_config.resolve_tailwind_paths(cwd);
+    format_config.resolve_astro_plugin_dir(cwd);
     // Validate eagerly, as the single gate for every option (core + js/sortImports):
     // downstream mapping consumes the derived artifacts and cannot re-fail,
     // and the `Prettier` strategy has no later chance before values reach Prettier.
@@ -394,6 +395,7 @@ impl ConfigResolver {
 
         if let Some(config_dir) = &self.config_dir {
             format_config.resolve_tailwind_paths(config_dir);
+            format_config.resolve_astro_plugin_dir(config_dir);
         }
 
         // Eagerly validate; see method doc for the rationale.
@@ -485,6 +487,7 @@ impl ConfigResolver {
 
         if let Some(config_dir) = &self.config_dir {
             format_config.resolve_tailwind_paths(config_dir);
+            format_config.resolve_astro_plugin_dir(config_dir);
         }
 
         // Validate the merged config;
@@ -524,9 +527,9 @@ fn build_ignore_glob(
 
 #[cfg(test)]
 mod tests_slow_path_validation {
-    use crate::core::support::NativeLanguage;
     #[cfg(feature = "napi")]
     use crate::core::support::PrettierLanguage;
+    use crate::core::{oxfmtrc::AstroUserConfig, support::NativeLanguage};
 
     use super::*;
 
@@ -596,6 +599,31 @@ mod tests_slow_path_validation {
         )
         .unwrap_err();
         assert!(err.contains("printWidth"), "expected printWidth validation error, got: {err}");
+    }
+
+    #[test]
+    fn astro_project_plugin_dir_is_config_dir_on_both_paths() {
+        let config_dir = PathBuf::from("/project");
+        let mut resolver = ConfigResolver::new(
+            serde_json::json!({
+                "astro": { "useProjectPlugin": true },
+                "overrides": [
+                    { "files": ["legacy/*.astro"], "options": { "astro": { "useProjectPlugin": false } } },
+                    { "files": ["override/*.astro"], "options": { "printWidth": 80 } }
+                ]
+            }),
+            Some(config_dir.clone()),
+            None,
+        );
+        resolver.build_and_validate().unwrap();
+
+        let plugin_dir = |path: &str| {
+            let (config, _) = resolver.resolve_options(Path::new(path)).unwrap();
+            config.astro.clone().and_then(AstroUserConfig::into_config).unwrap().project_plugin_dir
+        };
+        assert_eq!(plugin_dir("App.astro"), Some(config_dir.clone()));
+        assert_eq!(plugin_dir("override/App.astro"), Some(config_dir));
+        assert_eq!(plugin_dir("legacy/App.astro"), None);
     }
 }
 
