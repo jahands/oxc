@@ -1,3 +1,4 @@
+pub mod collation;
 mod compute_metadata;
 mod group_config;
 mod group_matcher;
@@ -16,7 +17,8 @@ use crate::{
     JsLabels, SortImportsOptions,
     formatter::JsFormatter,
     ir_transform::sort_imports::{
-        group_matcher::GroupMatcher, partitioned_chunk::PartitionedChunk, source_line::SourceLine,
+        group_matcher::GroupMatcher, partitioned_chunk::PartitionedChunk,
+        sortable_imports::SortableImport, source_line::SourceLine,
     },
 };
 
@@ -278,31 +280,40 @@ fn transform<'a>(
                 }
 
                 // Output sorted import units with orphan content at their slot positions
-                let mut prev_group_idx = None;
+                let mut prev_import: Option<&SortableImport> = None;
                 let mut seen_non_ignored = false;
                 for (slot_idx, sorted_import) in sorted_imports.iter().enumerate() {
-                    // Insert newline when:
-                    // 1. Group changes
-                    // 2. At least one non-ignored import has already been output
-                    //    (leading ignored imports don't trigger group boundaries)
-                    // 3. The boundary override (or global `newlines_between`) says to insert
-                    //    For decreasing transitions, fall back to whether the original input
-                    //    had a blank line at this slot position (matches perfectionist).
-                    let current_group_idx = sorted_import.group_idx;
-                    if let Some(prev_idx) = prev_group_idx
-                        && prev_idx != current_group_idx
-                        && seen_non_ignored
-                        && should_insert_newline_between(
-                            options.newlines_between,
-                            &options.newline_boundary_overrides,
-                            prev_idx,
-                            current_group_idx,
-                            slot_had_leading_blank[slot_idx],
-                        )
-                    {
+                    let insert_newline = prev_import.is_some_and(|prev| {
+                        if options.partition_by_side_effect
+                            && (prev.is_ignored || sorted_import.is_ignored)
+                        {
+                            return should_insert_newline_around_side_effect(
+                                options,
+                                prev,
+                                sorted_import,
+                            );
+                        }
+                        // Insert newline when:
+                        // 1. Group changes
+                        // 2. At least one non-ignored import has already been output
+                        //    (leading ignored imports don't trigger group boundaries)
+                        // 3. The boundary override (or global `newlines_between`) says to insert
+                        //    For decreasing transitions, fall back to whether the original input
+                        //    had a blank line at this slot position (matches perfectionist).
+                        prev.group_idx != sorted_import.group_idx
+                            && seen_non_ignored
+                            && should_insert_newline_between(
+                                options.newlines_between,
+                                &options.newline_boundary_overrides,
+                                prev.group_idx,
+                                sorted_import.group_idx,
+                                slot_had_leading_blank[slot_idx],
+                            )
+                    });
+                    if insert_newline {
                         next_elements.push(FormatElement::Line(LineMode::Empty));
                     }
-                    prev_group_idx = Some(current_group_idx);
+                    prev_import = Some(sorted_import);
                     if !sorted_import.is_ignored {
                         seen_non_ignored = true;
                     }
@@ -403,4 +414,43 @@ fn should_insert_newline_between(
     }
 
     false
+}
+
+/// Resolve whether a blank line goes between two neighbors in a `partition_by_side_effect` chunk
+/// when at least one of them is an ignored (side effect) import.
+///
+/// Blank lines are added only when any group boundary inserts newlines,
+/// either through the global `newlines_between` or a `{ "newlinesBetween": true }` marker:
+/// - none between two ignored imports
+/// - one after a run of ignored imports
+/// - one before a run of ignored imports, unless the run starts with a comment
+///   and no group boundary after the previous import's group inserts newlines
+fn should_insert_newline_around_side_effect(
+    options: &SortImportsOptions,
+    prev: &SortableImport,
+    current: &SortableImport,
+) -> bool {
+    let has_any_newline_boundary =
+        options.newlines_between || options.newline_boundary_overrides.contains(&Some(true));
+    if !has_any_newline_boundary {
+        return false;
+    }
+
+    match (prev.is_ignored, current.is_ignored) {
+        (true, true) => false,
+        (true, false) => true,
+        (false, _) => {
+            current.leading_lines.is_empty() || {
+                let boundary_count = options.groups.len().saturating_sub(1);
+                (prev.group_idx..boundary_count).any(|idx| {
+                    options
+                        .newline_boundary_overrides
+                        .get(idx)
+                        .copied()
+                        .flatten()
+                        .unwrap_or(options.newlines_between)
+                })
+            }
+        }
+    }
 }

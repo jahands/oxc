@@ -31,8 +31,8 @@ use oxc::{
 use oxc_formatter::{
     ArrowParentheses, AttributePosition, BracketSameLine, BracketSpacing, CustomGroupDefinition,
     Expand, GroupEntry, ImportModifier, ImportSelector, JsFormatOptions, OperatorPosition,
-    QuoteProperties, QuoteStyle, Semicolons, SortImportsOptions, SortOrder, TrailingCommas,
-    default_groups, default_internal_patterns,
+    QuoteProperties, QuoteStyle, Semicolons, SortCollation, SortImportsOptions, SortOrder,
+    TrailingCommas, default_groups, default_internal_patterns,
 };
 use oxc_formatter_core::{IndentStyle, IndentWidth, LineEnding, LineWidth};
 use oxc_linter::{
@@ -617,9 +617,12 @@ impl Oxc {
             format_options.sort_imports = Some(SortImportsOptions {
                 partition_by_newline: sort_imports_config.partition_by_newline.unwrap_or(false),
                 partition_by_comment: sort_imports_config.partition_by_comment.unwrap_or(false),
+                partition_by_side_effect: false,
                 sort_side_effects: sort_imports_config.sort_side_effects.unwrap_or(false),
                 order,
                 ignore_case: sort_imports_config.ignore_case.unwrap_or(true),
+                collation: SortCollation::Natural,
+                sort_specifiers: false,
                 newlines_between: sort_imports_config.newlines_between.unwrap_or(true),
                 internal_pattern: sort_imports_config
                     .internal_pattern

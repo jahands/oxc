@@ -2,7 +2,7 @@ mod sort_imports;
 
 use oxc_formatter::{
     CustomGroupDefinition, GroupEntry, ImportModifier, ImportSelector, JsFormatOptions,
-    JsdocOptions, QuoteStyle, Semicolons, SortImportsOptions, SortOrder,
+    JsdocOptions, QuoteStyle, Semicolons, SortCollation, SortImportsOptions, SortOrder,
 };
 use serde::Deserialize;
 
@@ -73,9 +73,12 @@ struct TestCustomGroupDefinition {
 struct TestSortImportsConfig {
     partition_by_newline: Option<bool>,
     partition_by_comment: Option<bool>,
+    partition_by_side_effect: Option<bool>,
     sort_side_effects: Option<bool>,
     order: Option<String>,
     ignore_case: Option<bool>,
+    collation: Option<String>,
+    sort_specifiers: Option<bool>,
     newlines_between: Option<bool>,
     internal_pattern: Option<Vec<String>>,
     #[serde(default, deserialize_with = "deserialize_groups")]
@@ -145,6 +148,9 @@ fn parse_test_config(json: &str) -> JsFormatOptions {
         if let Some(v) = sort_config.partition_by_comment {
             sort_imports.partition_by_comment = v;
         }
+        if let Some(v) = sort_config.partition_by_side_effect {
+            sort_imports.partition_by_side_effect = v;
+        }
         if let Some(v) = sort_config.sort_side_effects {
             sort_imports.sort_side_effects = v;
         }
@@ -156,6 +162,13 @@ fn parse_test_config(json: &str) -> JsFormatOptions {
         }
         if let Some(v) = sort_config.ignore_case {
             sort_imports.ignore_case = v;
+        }
+        if let Some(v) = sort_config.collation {
+            sort_imports.collation =
+                v.parse::<SortCollation>().expect("fixture holds an invalid collation");
+        }
+        if let Some(v) = sort_config.sort_specifiers {
+            sort_imports.sort_specifiers = v;
         }
         if let Some(v) = sort_config.newlines_between {
             sort_imports.newlines_between = v;

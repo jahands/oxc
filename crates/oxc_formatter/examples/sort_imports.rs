@@ -4,7 +4,8 @@ use std::{fs, path::Path};
 
 use oxc_allocator::Allocator;
 use oxc_formatter::{
-    JsFormatOptions, SortImportsOptions, SortOrder, default_groups, default_internal_patterns,
+    JsFormatOptions, SortCollation, SortImportsOptions, SortOrder, default_groups,
+    default_internal_patterns,
 };
 use oxc_span::SourceType;
 use pico_args::Arguments;
@@ -26,8 +27,11 @@ fn main() -> Result<(), String> {
         order,
         partition_by_newline,
         partition_by_comment,
+        partition_by_side_effect: false,
         sort_side_effects,
         ignore_case,
+        collation: SortCollation::Natural,
+        sort_specifiers: false,
         newlines_between,
         internal_pattern: default_internal_patterns(),
         groups: default_groups(),
