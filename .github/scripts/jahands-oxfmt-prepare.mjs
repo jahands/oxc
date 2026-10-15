@@ -30,7 +30,7 @@ pkg.name = "@jahands/oxfmt";
 pkg.version = version;
 pkg.bugs = "https://github.com/jahands/oxc/issues";
 // npm provenance requires `repository.url` to match the publishing repository.
-pkg.repository.url = "git+https://github.com/jahands/oxc";
+pkg.repository.url = "git+https://github.com/jahands/oxc.git";
 pkg.napi.packageName = "@jahands/oxfmt-binding";
 write(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
 

@@ -225,7 +225,9 @@ jobs:
           cp -r apps/oxfmt/dist "${package_path}/dist"
 
       # Adds the platform packages to `optionalDependencies` of the main package.
-      - run: pnpm napi pre-publish --skip-optional-publish --no-gh-release -t npm --package-json-path "${package_path}/package.json" --npm-dir "${npm_dir}"
+      - run: |
+          pnpm napi pre-publish --skip-optional-publish --no-gh-release -t npm --package-json-path "${package_path}/package.json" --npm-dir "${npm_dir}"
+          cat "${package_path}/package.json"
 
       - name: Publish
         env:
