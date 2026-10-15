@@ -1,0 +1,268 @@
+---
+source: tests/integration_test.rs
+expression: result
+---
+{
+  "$schema": "https://json.schemastore.org/package",
+  "name": "test-package",
+  "displayName": "Test Package Display",
+  "version": "1.0.0",
+  "description": "A comprehensive test package for sorting",
+  "categories": [
+    "testing",
+    "utilities"
+  ],
+  "keywords": [
+    "example",
+    "json",
+    "sorting",
+    "test"
+  ],
+  "homepage": "https://github.com/test/test-package#readme",
+  "bugs": {
+    "url": "https://github.com/test/test-package/issues",
+    "email": "bugs@example.com"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Test Author",
+    "email": "author@example.com",
+    "url": "https://example.com"
+  },
+  "maintainers": [
+    "Zebra Maintainer <zebra@example.com>",
+    "Apple Maintainer <apple@example.com>",
+    {
+      "url": "https://maintainer1.com",
+      "name": "Object Maintainer",
+      "email": "maintainer1@example.com"
+    }
+  ],
+  "contributors": [
+    "Zebra Contributor <zebra@example.com>",
+    {
+      "name": "Zebra Person",
+      "email": "zebra@example.com",
+      "url": "https://zebra.example.com"
+    },
+    {
+      "name": "Apple Person",
+      "email": "apple@example.com",
+      "url": "https://apple.example.com"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/test/test-package"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/test"
+  },
+  "man": "./man/doc.1",
+  "bin": {
+    "app": "./bin/app.js",
+    "cli": "./bin/cli.js"
+  },
+  "directories": {
+    "lib": "./lib",
+    "bin": "./bin",
+    "doc": "./docs",
+    "test": "./tests"
+  },
+  "files": [
+    "src",
+    "!src/internal",
+    "dist",
+    "!dist/temp",
+    "README.md",
+    "LICENSE",
+    "bin/cli.js"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.esm.js",
+  "browser": "./dist/browser.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "default": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.esm.js"
+    },
+    "./paths-should-keep-b_a": {
+      "b": "./index.cjs",
+      "a": "./index.js"
+    },
+    "./package.json": "./package.json",
+    "./utils": {
+      "import": "./dist/utils.esm.js",
+      "default": "./dist/utils.js",
+      "types": "./dist/utils.d.ts"
+    }
+  },
+  "publishConfig": {
+    "name": "@scope/published-name",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "dependencies": {
+      "axios": "^1.0.0",
+      "react": "^18.0.0"
+    },
+    "access": "public",
+    "registry": "https://registry.npmjs.org/",
+    "tag": "latest"
+  },
+  "scripts": {
+    "build": "webpack",
+    "dev": "webpack serve",
+    "lint": "eslint .",
+    "posttest": "echo 'Tests complete'",
+    "pretest": "echo 'Starting tests'",
+    "test": "jest"
+  },
+  "dependencies": {
+    "axios": "^1.0.0",
+    "lodash": "^4.17.21",
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "typescript": "^5.0.0",
+    "webpack": "^5.0.0"
+  },
+  "peerDependencies": {
+    "react": ">=16.0.0"
+  },
+  "optionalDependencies": {
+    "fsevents": "^2.0.0"
+  },
+  "bundledDependencies": [
+    "axios",
+    "lodash"
+  ],
+  "resolutions": {
+    "lodash": "^4.17.21"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "vite-staged": {
+    "*.ts": "vitest related command"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "git add"
+    ]
+  },
+  "nano-staged": {
+    "*.md": "prettier --write"
+  },
+  "babel": {
+    "plugins": [
+      "@babel/plugin-proposal-class-properties"
+    ],
+    "presets": [
+      "@babel/preset-env",
+      "@babel/preset-react"
+    ]
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true
+  },
+  "eslintConfig": {
+    "env": {
+      "node": true
+    },
+    "extends": [
+      "eslint:recommended"
+    ]
+  },
+  "auto-changelog": {
+    "replaceText": {
+      "(ABC-\\d+)": "[`$1`](https://issues.example.com/$1)",
+      "\\[`(ABC-\\d+)`\\]\\(.*\\) hotfix": "HOTFIX $1"
+    },
+    "unreleased": true
+  },
+  "remarkConfig": {
+    "plugins": {
+      "remark-toc": true,
+      "remark-lint": true
+    },
+    "settings": {
+      "bullet": "-"
+    }
+  },
+  "tshy": {
+    "exports": {
+      ".": "./src/index.ts",
+      "./compiled": {
+        "types": "./lib/compiled.d.ts",
+        "import": "./lib/compiled.mjs",
+        "default": "./lib/compiled.cjs"
+      }
+    },
+    "selfLink": false
+  },
+  "jest": {
+    "collectCoverage": true,
+    "moduleNameMapper": {
+      "^_/(.*).(woff|woff2)$": "<rootDir>/assets/test/fileMock.js",
+      "^_/(.*)$": "<rootDir>/src/$1"
+    },
+    "testEnvironment": "node"
+  },
+  "devEngines": {
+    "cpu": {
+      "name": "x64",
+      "onFail": "ignore"
+    },
+    "libc": [
+      {
+        "name": "glibc",
+        "version": ">=2.31",
+        "onFail": "warn"
+      }
+    ],
+    "os": [
+      {
+        "name": "darwin",
+        "version": ">=14",
+        "onFail": "warn"
+      },
+      {
+        "name": "win32",
+        "version": ">=10"
+      }
+    ],
+    "packageManager": {
+      "name": "pnpm",
+      "version": "1.0.0",
+      "onFail": "download"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "1.0.0",
+      "onFail": "download"
+    }
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "volta": {
+    "node": "18.0.0"
+  },
+  "packageManager": "npm@8.0.0",
+  "anotherCustom": "another custom field",
+  "customField": "this is a custom unknown field",
+  "_custom": "private field with underscore",
+  "_id": "test-package@1.0.0",
+  "_internal": "another private field"
+}
