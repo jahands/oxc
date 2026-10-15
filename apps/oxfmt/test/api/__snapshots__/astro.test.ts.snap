@@ -1,5 +1,28 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`Astro support > \`astro.useProjectPlugin\` > should format with the plugin installed in the project 1`] = `
+"---
+import a from "a";
+import b from "b";
+const items = [1, 2, 3];
+if (!items) return Astro.redirect("/404");
+---
+
+<div class="flex bg-red-500 p-4">
+  <Foo title={"x"} />
+  {items.map((i) => <p>{i}</p>)}
+</div>
+<script>
+  const x = 1;
+</script>
+<style>
+  div {
+    color: red;
+  }
+</style>
+"
+`;
+
 exports[`Astro support > Basic > should accept all \`astro.*\` options together 1`] = `
 "---
 import b from "b";

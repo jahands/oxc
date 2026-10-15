@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { format } from "../../dist/index.js";
 
@@ -93,6 +96,52 @@ describe("Astro support", () => {
     const result = await format("App.astro", sass, { astro: {} });
     expect(result.errors).toStrictEqual([]);
     expect(result.code).toBe(sass);
+  });
+
+  describe("`astro.useProjectPlugin`", () => {
+    // `format()` resolves the project's plugin from the current working directory
+    async function inProject<T>(fn: () => Promise<T>): Promise<T> {
+      const cwd = process.cwd();
+      const dir = await mkdtemp(join(tmpdir(), "oxfmt-astro-"));
+      try {
+        await mkdir(join(dir, "node_modules"));
+        await symlink(
+          join(import.meta.dirname, "..", "..", "node_modules", "prettier-plugin-astro-0.14"),
+          join(dir, "node_modules", "prettier-plugin-astro"),
+          "dir",
+        );
+        process.chdir(dir);
+        return await fn();
+      } finally {
+        process.chdir(cwd);
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+
+    it("should format with the plugin installed in the project", async () => {
+      const options = { sortImports: {}, sortTailwindcss: {} };
+      const result = await inProject(() =>
+        format("App.astro", INPUT, { ...options, astro: { useProjectPlugin: true } }),
+      );
+      expect(result.errors).toStrictEqual([]);
+      expect(result.code).toMatchSnapshot();
+
+      const bundled = await format("App.astro", INPUT, { ...options, astro: {} });
+      expect(result.code).not.toBe(bundled.code);
+    });
+
+    it("should reset `PRETTIER_DEBUG` the plugin sets on an embed error", async () => {
+      const broken = "<p />\n<style>\n.a { color: red\n</style>\n";
+      const result = await inProject(() =>
+        format("Broken.astro", broken, { astro: { useProjectPlugin: true } }),
+      );
+      expect(result.errors.length).toBe(1);
+      expect(process.env.PRETTIER_DEBUG).toBeUndefined();
+
+      const bundled = await format("Broken.astro", broken, { astro: {} });
+      expect(bundled.errors).toStrictEqual([]);
+      expect(bundled.code).toBe(broken);
+    });
   });
 
   it("should format ```astro code blocks in Markdown", async () => {

@@ -309,6 +309,11 @@
           "description": "Whether to skip formatting the frontmatter.\n\n- Default: `false`",
           "type": "boolean",
           "markdownDescription": "Whether to skip formatting the frontmatter.\n\n- Default: `false`"
+        },
+        "useProjectPlugin": {
+          "description": "Whether to use the `prettier-plugin-astro` installed in your project (e.g. `0.14.x`) instead of the bundled version.\nIt is resolved from the directory of the config file (the current working directory for the Node.js API).\nFormatting fails if it cannot be resolved.\n\n- Default: `false`",
+          "type": "boolean",
+          "markdownDescription": "Whether to use the `prettier-plugin-astro` installed in your project (e.g. `0.14.x`) instead of the bundled version.\nIt is resolved from the directory of the config file (the current working directory for the Node.js API).\nFormatting fails if it cannot be resolved.\n\n- Default: `false`"
         }
       }
     },
