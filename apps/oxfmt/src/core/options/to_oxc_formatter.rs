@@ -4,7 +4,7 @@ use oxc_formatter::{
     ArrowParentheses, AttributePosition, BracketSameLine, BracketSpacing, CommentLineStrategy,
     CustomGroupDefinition, Expand, GroupEntry, ImportModifier, ImportSelector, JsFormatOptions,
     JsdocOptions, LineWrappingStyle, OperatorPosition, QuoteProperties, QuoteStyle, Semicolons,
-    SortImportsOptions, SortOrder, TrailingCommas,
+    SortCollation, SortImportsOptions, SortOrder, TrailingCommas,
 };
 use oxc_formatter_core::{CoreFormatOptions, FormatOptions};
 
@@ -13,8 +13,8 @@ use super::super::oxfmtrc::SortTailwindcssUserConfig;
 use super::super::oxfmtrc::{
     ArrowParensConfig, CommentLineStrategyConfig, FormatConfig, HtmlWhitespaceSensitivityConfig,
     ImportModifierConfig, ImportSelectorConfig, JsdocUserConfig, LineWrappingStyleConfig,
-    ObjectWrapConfig, OperatorPositionConfig, QuotePropsConfig, SortGroupItemConfig,
-    SortImportsUserConfig, SortOrderConfig, TrailingCommaConfig,
+    ObjectWrapConfig, OperatorPositionConfig, QuotePropsConfig, SortCollationConfig,
+    SortGroupItemConfig, SortImportsUserConfig, SortOrderConfig, TrailingCommaConfig,
 };
 
 /// Convert `FormatConfig` into `JsFormatOptions` for `oxc_formatter`.
@@ -168,6 +168,9 @@ pub(super) fn to_sort_imports(config: &FormatConfig) -> Result<Option<SortImport
     if let Some(v) = sort_imports_config.partition_by_comment {
         sort_imports.partition_by_comment = v;
     }
+    if let Some(v) = sort_imports_config.partition_by_side_effect {
+        sort_imports.partition_by_side_effect = v;
+    }
     if let Some(v) = sort_imports_config.sort_side_effects {
         sort_imports.sort_side_effects = v;
     }
@@ -179,6 +182,15 @@ pub(super) fn to_sort_imports(config: &FormatConfig) -> Result<Option<SortImport
     }
     if let Some(v) = sort_imports_config.ignore_case {
         sort_imports.ignore_case = v;
+    }
+    if let Some(v) = sort_imports_config.collation {
+        sort_imports.collation = match v {
+            SortCollationConfig::Natural => SortCollation::Natural,
+            SortCollationConfig::Intl => SortCollation::Intl,
+        };
+    }
+    if let Some(v) = sort_imports_config.sort_specifiers {
+        sort_imports.sort_specifiers = v;
     }
     if let Some(v) = sort_imports_config.newlines_between {
         sort_imports.newlines_between = v;
@@ -483,6 +495,25 @@ mod tests {
         let sort_imports = format_options.sort_imports.unwrap();
         assert!(sort_imports.newlines_between);
         assert!(!sort_imports.partition_by_newline);
+        assert!(!sort_imports.partition_by_side_effect);
+        assert_eq!(sort_imports.collation, SortCollation::Natural);
+        assert!(!sort_imports.sort_specifiers);
+
+        let config: FormatConfig = serde_json::from_str(
+            r#"{
+                "sortImports": {
+                    "partitionBySideEffect": true,
+                    "collation": "intl",
+                    "sortSpecifiers": true
+                }
+            }"#,
+        )
+        .unwrap();
+        let format_options = build(&config).unwrap();
+        let sort_imports = format_options.sort_imports.unwrap();
+        assert!(sort_imports.partition_by_side_effect);
+        assert_eq!(sort_imports.collation, SortCollation::Intl);
+        assert!(sort_imports.sort_specifiers);
 
         let config: FormatConfig = serde_json::from_str(
             r#"{

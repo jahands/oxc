@@ -63,4 +63,32 @@ import { foo } from "@scope/foo";
     );
     expect(result.errors).toStrictEqual([]);
   });
+
+  it("should sort with partitionBySideEffect, collation and sortSpecifiers", async () => {
+    const input = `import { z, type T, a } from "#lib/z";
+import { y } from "@scope/y";
+import "./setup";
+import { c, b } from "c";
+`;
+    const result = await format("a.ts", input, {
+      sortImports: {
+        partitionBySideEffect: true,
+        collation: "intl",
+        sortSpecifiers: true,
+      },
+    });
+
+    expect(result.code).toBe(
+      `
+import { y } from "@scope/y";
+
+import { a, z, type T } from "#lib/z";
+
+import "./setup";
+
+import { b, c } from "c";
+`.trimStart(),
+    );
+    expect(result.errors).toStrictEqual([]);
+  });
 });

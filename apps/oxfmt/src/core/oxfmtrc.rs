@@ -537,6 +537,28 @@ pub struct SortImportsConfig {
     /// - Default: `false`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub partition_by_comment: Option<bool>,
+    /// Use side effect imports to separate imports into logical groups.
+    ///
+    /// When `true`, imports are not sorted across a side effect import that keeps its position
+    /// (see `sortSideEffects`).
+    ///
+    /// If any group boundary inserts newlines (`newlinesBetween: true` or a `{ "newlinesBetween": true }` marker),
+    /// a run of side effect imports also gets a blank line after it, and one before it.
+    /// The blank line before is left out when the run starts with a comment
+    /// and no group boundary after the previous import's group inserts newlines.
+    ///
+    /// ```js
+    /// import { b } from 'b'
+    /// import { c } from 'c'
+    ///
+    /// import './setup'
+    ///
+    /// import { a } from 'a'
+    /// ```
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub partition_by_side_effect: Option<bool>,
     /// Sort side effect imports.
     ///
     /// Disabled by default for safety reasons.
@@ -554,6 +576,32 @@ pub struct SortImportsConfig {
     /// - Default: `true`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ignore_case: Option<bool>,
+    /// How import sources and specifier names are compared.
+    ///
+    /// - `"natural"`: Code point order, with digit runs compared as numbers.
+    /// - `"intl"`: The order of `a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true })`,
+    ///   as used by `@ianvs/prettier-plugin-sort-imports`.
+    ///   Symbols sort before digits and digits before letters (e.g. `@scope/pkg` before `#subpath`, `a_b` before `a-b`).
+    ///   The whole module specifier is compared, including any `?query`.
+    ///   Case is always ignored; with `ignoreCase: false`, names that compare equal are ordered by code point.
+    ///   Non-ASCII characters sort after ASCII letters by code point, which can differ from `Intl.Collator`.
+    ///
+    /// - Default: `"natural"`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collation: Option<SortCollationConfig>,
+    /// Sort named specifiers inside `{ ... }`.
+    ///
+    /// Value specifiers come before inline `type` specifiers, then specifiers are ordered by their local name,
+    /// following `collation`, `ignoreCase` and `order`.
+    /// Specifier lists that contain comments are left as written.
+    ///
+    /// ```js
+    /// import { alpha, Beta, Zed, type Alpha } from 'x'
+    /// ```
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sort_specifiers: Option<bool>,
     /// Add newlines between groups.
     ///
     /// - Default: `true`
@@ -632,6 +680,13 @@ pub struct SortImportsConfig {
 pub enum SortOrderConfig {
     Asc,
     Desc,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum SortCollationConfig {
+    Natural,
+    Intl,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
