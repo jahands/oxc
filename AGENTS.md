@@ -15,6 +15,7 @@ Upstream base: oxc-project/oxc@033faa933eec3bdd5a32650fd96a7c39f4ef7772
 - Use one marker per change site. A file that exists only in the fork gets one marker at the top describing its purpose.
 - Markers are not needed in generated files (`npm/oxfmt/configuration_schema.json`, `apps/oxfmt/src-js/config.generated.ts`, snapshots), lockfiles, manifests (`Cargo.toml`, `package.json`), test files and fixtures (including `#[cfg(test)]` modules), or on `use`/`import` lines that only support a marked change.
 - `crates/sort_package_json` is the crates.io `sort-package-json` 1.0.0 crate (github.com/oxc-project/sort-package-json), vendored and wired in through `[patch.crates-io]` in the root `Cargo.toml`. Only our edits in it carry markers.
+- `crates/oxc_toml` is the crates.io `oxc-toml` 0.15.0 crate (github.com/oxc-project/oxc-toml), vendored the same way. Only our edits in it carry markers.
 - When rebasing onto new upstream, re-apply every `JHPATCH` change on top of the new upstream code (or drop it if upstream now covers it), then update the upstream base above.
 - If a `JHPATCH` change no longer seems needed or conflicts with upstream's new approach, stop and ask the user whether to keep it, with your reasoning, before continuing.
 
