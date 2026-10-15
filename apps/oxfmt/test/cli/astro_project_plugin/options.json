@@ -1,1 +1,0 @@
-[{ "args": ["App.astro"] }, { "args": ["--config", "fmt-bundled.json", "App.astro"] }]
