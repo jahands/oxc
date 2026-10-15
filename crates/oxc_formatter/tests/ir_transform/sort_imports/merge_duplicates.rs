@@ -317,3 +317,83 @@ f();
 "#,
     );
 }
+
+#[test]
+fn should_place_specifier_comments_like_prettier() {
+    // A comment on its own line at the end of the list stays at the end.
+    assert_format(
+        r#"
+import { a } from "x";
+import {
+  c,
+  b,
+  // d,
+} from "x";
+"#,
+        MERGE_SPLIT,
+        r#"
+import {
+  a,
+  b,
+  c,
+  // d,
+} from "x";
+"#,
+    );
+    // A comment after `{` on the line of the default specifier goes after it.
+    assert_format(
+        r#"
+import D, { // About D.
+  a,
+} from "x";
+import { b } from "x";
+"#,
+        MERGE_SPLIT,
+        r#"
+import D, { a, b } from "x"; // About D.
+"#,
+    );
+    // A block comment on the line of a specifier stays on it.
+    assert_format(
+        r#"
+import {
+  /* About T. */ type T,
+  v,
+  w,
+} from "x";
+"#,
+        MERGE_SPLIT,
+        r#"
+import { v, w } from "x";
+
+import type { /* About T. */ T } from "x";
+"#,
+    );
+    // A block comment after a comma leads the next specifier.
+    assert_format(
+        r#"
+import { type T, /* About v. */ v } from "x";
+"#,
+        MERGE_SPLIT,
+        r#"
+import { /* About v. */ v } from "x";
+
+import type { T } from "x";
+"#,
+    );
+    // A single-line block comment on the line above a specifier goes after the specifier before it.
+    assert_format(
+        r#"
+import { a } from "x";
+import {
+  /* About c. */
+  c,
+  b,
+} from "x";
+"#,
+        MERGE_SPLIT,
+        r#"
+import { a, b /* About c. */, c } from "x";
+"#,
+    );
+}

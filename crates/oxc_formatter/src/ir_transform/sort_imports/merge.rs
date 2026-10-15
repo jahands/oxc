@@ -9,7 +9,7 @@ use oxc_ast::{
     ast::{ImportDeclaration, ImportDeclarationSpecifier, Program, Statement},
 };
 use oxc_formatter_core::spec::is_suppression_marker;
-use oxc_span::GetSpan;
+use oxc_span::{GetSpan, Span};
 use oxc_syntax::line_terminator::is_line_terminator;
 
 use super::{
@@ -143,10 +143,10 @@ pub fn plan_import_rewrites(
                 continue;
             }
             let (text, split) = if should_split {
-                let (text, type_offset) = candidate.render_split(options);
+                let (text, type_offset) = candidate.render_split(source, options);
                 (text, Some(type_offset))
             } else {
-                (candidate.render(options), None)
+                (candidate.render(source, options), None)
             };
             for &absorbed in &candidate.absorbed {
                 rewrites.insert(absorbed, Rewrite::Absorbed(candidate.idx));
@@ -259,7 +259,7 @@ struct Candidate<'a> {
     /// Whether the import was a type import before merging.
     is_type_flavor: bool,
     is_type: bool,
-    default: Option<&'a str>,
+    default: Option<DefaultSpecifier<'a>>,
     has_namespace: bool,
     named: Vec<NamedSpecifier<'a>>,
     /// Whether every comment in the import is inside `{ ... }` and outside the specifiers,
@@ -271,25 +271,37 @@ struct Candidate<'a> {
     is_absorbed: bool,
 }
 
-/// A named specifier with the comments around it inside `{ ... }`.
+#[derive(Clone, Copy)]
+struct DefaultSpecifier<'a> {
+    text: &'a str,
+    span: Span,
+}
+
+/// A comment inside `{ ... }`.
+#[derive(Clone, Copy)]
+struct SpecifierComment<'a> {
+    text: &'a str,
+    span: Span,
+}
+
+impl SpecifierComment<'_> {
+    fn is_line(self) -> bool {
+        self.text.starts_with("//")
+    }
+}
+
+/// A named specifier with the comments that Babel attaches to it.
 struct NamedSpecifier<'a> {
     /// The specifier as written, without an inline `type` keyword.
     text: &'a str,
     local: &'a str,
+    span: Span,
     /// Whether the specifier imports a type: an inline `type` specifier or a specifier of a type import.
     is_type: bool,
-    /// Comments on the lines before the specifier.
-    leading: Vec<&'a str>,
-    /// Comments after the specifier on its line.
-    trailing: Vec<&'a str>,
-    /// Comments on the lines after the last specifier.
-    after: Vec<&'a str>,
-}
-
-impl NamedSpecifier<'_> {
-    fn has_comments(&self) -> bool {
-        !self.leading.is_empty() || !self.trailing.is_empty() || !self.after.is_empty()
-    }
+    /// Comments after `{` or a comma that come before the specifier.
+    leading: Vec<SpecifierComment<'a>>,
+    /// Comments directly after the specifier, and comments after the last comma of the list.
+    trailing: Vec<SpecifierComment<'a>>,
 }
 
 impl<'a> Candidate<'a> {
@@ -309,67 +321,34 @@ impl<'a> Candidate<'a> {
         let mut default = None;
         let mut has_namespace = false;
         let mut named = vec![];
-        let mut named_spans = vec![];
         for specifier in specifiers {
             match specifier {
                 ImportDeclarationSpecifier::ImportDefaultSpecifier(specifier) => {
-                    default = Some(text(specifier.local.span.start..specifier.local.span.end));
+                    default = Some(DefaultSpecifier {
+                        text: text(specifier.local.span.start..specifier.local.span.end),
+                        span: specifier.span,
+                    });
                 }
                 ImportDeclarationSpecifier::ImportNamespaceSpecifier(_) => has_namespace = true,
                 ImportDeclarationSpecifier::ImportSpecifier(specifier) => {
                     named.push(NamedSpecifier {
                         text: text(specifier.imported.span().start..specifier.span.end),
                         local: specifier.local.name.as_str(),
+                        span: specifier.span,
                         is_type: is_type || specifier.import_kind.is_type(),
                         leading: vec![],
                         trailing: vec![],
-                        after: vec![],
                     });
-                    named_spans.push(specifier.span);
                 }
             }
         }
 
-        let mut is_rebuildable = true;
-        let decl_comments = comments_in(comments, decl.span.start, decl.span.end);
-        if !decl_comments.is_empty() {
-            match (named_spans.first(), named_spans.last()) {
-                (Some(first), Some(last)) => {
-                    let open = skip_back_over_comments(source, comments, first.start);
-                    let close = skip_over_comments(source, comments, last.end);
-                    for comment in decl_comments {
-                        let comment_text = text(comment.span.start..comment.span.end);
-                        let in_braces = comment.span.start >= open && comment.span.end <= close;
-                        let in_specifier = named_spans.iter().any(|span| {
-                            span.start < comment.span.start && comment.span.end < span.end
-                        });
-                        if !in_braces || in_specifier {
-                            is_rebuildable = false;
-                            break;
-                        }
-                        let prev =
-                            named_spans.iter().rposition(|span| span.end <= comment.span.start);
-                        let next =
-                            named_spans.iter().position(|span| span.start >= comment.span.end);
-                        match (prev, next) {
-                            (Some(prev), _)
-                                if !has_line_break(
-                                    source,
-                                    named_spans[prev].end,
-                                    comment.span.start,
-                                ) =>
-                            {
-                                named[prev].trailing.push(comment_text);
-                            }
-                            (_, Some(next)) => named[next].leading.push(comment_text),
-                            (Some(prev), None) => named[prev].after.push(comment_text),
-                            (None, None) => unreachable!("`named` is not empty"),
-                        }
-                    }
-                }
-                _ => is_rebuildable = false,
-            }
-        }
+        let is_rebuildable = attach_comments(
+            &mut named,
+            source,
+            comments,
+            comments_in(comments, decl.span.start, decl.span.end),
+        );
 
         let attributes = if decl.with_clause.is_some() {
             text(decl.source.span.end..decl.span.end).trim_end().trim_end_matches(';').trim_end()
@@ -406,120 +385,313 @@ impl<'a> Candidate<'a> {
             && type_count < specifier_count
     }
 
-    fn render(&self, options: &SortImportsOptions) -> String {
-        let named: Vec<_> = self.named.iter().collect();
-        render_declaration(
-            self.is_type,
-            self.default,
-            named,
-            self.source_text,
-            self.attributes,
-            options,
-        )
+    fn render(&self, source: &str, options: &SortImportsOptions) -> String {
+        let declarations = [Declaration {
+            is_type: self.is_type,
+            default: self.default,
+            named: self.named.iter().collect(),
+        }];
+        let [text] =
+            render_declarations(declarations, self.source_text, self.attributes, source, options);
+        text
     }
 
     /// The value import and the type import, and the offset of the type import.
-    fn render_split(&self, options: &SortImportsOptions) -> (String, usize) {
+    fn render_split(&self, source: &str, options: &SortImportsOptions) -> (String, usize) {
         let (types, values): (Vec<_>, Vec<_>) =
             self.named.iter().partition(|specifier| specifier.is_type);
-        let mut text = render_declaration(
-            false,
-            self.default,
-            values,
-            self.source_text,
-            self.attributes,
-            options,
-        );
+        let declarations = [
+            Declaration { is_type: false, default: self.default, named: values },
+            Declaration { is_type: true, default: None, named: types },
+        ];
+        let [mut text, type_text] =
+            render_declarations(declarations, self.source_text, self.attributes, source, options);
         text.push('\n');
         let type_offset = text.len();
-        text.push_str(&render_declaration(
-            true,
-            None,
-            types,
-            self.source_text,
-            self.attributes,
-            options,
-        ));
+        text.push_str(&type_text);
         (text, type_offset)
     }
 }
 
-/// With `sort_specifiers`, the named specifiers are ordered like `sort_named_specifiers` in the import printer,
-/// which leaves lists with comments as written.
-fn render_declaration(
-    is_type: bool,
-    default: Option<&str>,
-    mut named: Vec<&NamedSpecifier<'_>>,
-    source_text: &str,
-    attributes: &str,
-    options: &SortImportsOptions,
-) -> String {
-    if options.sort_specifiers {
-        named.sort_by(|a, b| {
-            (!is_type && a.is_type).cmp(&(!is_type && b.is_type)).then_with(|| {
-                let ordering = compare_names(
-                    &normalize_name(a.local, options),
-                    &normalize_name(b.local, options),
-                    options,
-                );
-                if options.order.is_desc() { ordering.reverse() } else { ordering }
+/// Attach the comments in an import (`decl_comments`) to its named specifiers the way Babel does.
+///
+/// A comment directly after a specifier trails it.
+/// A comment after `{` or a comma leads the next specifier, or trails the last one when `}` follows.
+/// Comments with only whitespace between them are attached together.
+///
+/// Returns whether every comment is inside `{ ... }` and outside the specifiers.
+fn attach_comments<'a>(
+    named: &mut [NamedSpecifier<'a>],
+    source: &'a str,
+    comments: &[Comment],
+    decl_comments: &[Comment],
+) -> bool {
+    if decl_comments.is_empty() {
+        return true;
+    }
+    let (Some(first), Some(last)) = (named.first(), named.last()) else {
+        return false;
+    };
+    let open = skip_back_over_comments(source, comments, first.span.start);
+    let close = skip_over_comments(source, comments, last.span.end);
+    let is_inside = |comment: &Comment| {
+        comment.span.start >= open
+            && comment.span.end <= close
+            && !named.iter().any(|specifier| {
+                specifier.span.start < comment.span.start && comment.span.end < specifier.span.end
             })
-        });
+    };
+    if !decl_comments.iter().all(is_inside) {
+        return false;
     }
 
-    let mut out = String::from("import ");
-    if is_type {
-        out.push_str("type ");
-    }
-    if let Some(default) = default {
-        out.push_str(default);
-        if !named.is_empty() {
-            out.push_str(", ");
+    let mut from = 0;
+    while from < decl_comments.len() {
+        let mut to = from + 1;
+        while to < decl_comments.len()
+            && source
+                [decl_comments[to - 1].span.end as usize..decl_comments[to].span.start as usize]
+                .trim()
+                .is_empty()
+        {
+            to += 1;
+        }
+        let block = &decl_comments[from..to];
+        from = to;
+
+        #[expect(clippy::cast_possible_truncation)]
+        let before = source[..block[0].span.start as usize].trim_end().len() as u32;
+        let block_end = block[block.len() - 1].span.end as usize;
+        #[expect(clippy::cast_possible_truncation)]
+        let after = (source.len() - source[block_end..].trim_start().len()) as u32;
+        let block = block.iter().map(|comment| SpecifierComment {
+            text: &source[comment.span.start as usize..comment.span.end as usize],
+            span: comment.span,
+        });
+        if let Some(prev) = named.iter_mut().find(|specifier| specifier.span.end == before) {
+            prev.trailing.extend(block);
+        } else if let Some(next) = named.iter_mut().find(|specifier| specifier.span.start == after)
+        {
+            next.leading.extend(block);
+        } else {
+            named.last_mut().expect("`named` is not empty").trailing.extend(block);
         }
     }
-    if named.iter().any(|specifier| specifier.has_comments()) {
-        out.push_str("{\n");
-        for specifier in named {
-            for comment in &specifier.leading {
-                out.push_str(comment);
-                out.push('\n');
-            }
-            if !is_type && specifier.is_type {
-                out.push_str("type ");
-            }
-            out.push_str(specifier.text);
-            out.push(',');
-            for comment in &specifier.trailing {
-                out.push(' ');
-                out.push_str(comment);
-            }
-            out.push('\n');
-            for comment in &specifier.after {
-                out.push_str(comment);
-                out.push('\n');
+    true
+}
+
+/// An import declaration to print from specifiers.
+struct Declaration<'s, 'a> {
+    is_type: bool,
+    default: Option<DefaultSpecifier<'a>>,
+    named: Vec<&'s NamedSpecifier<'a>>,
+}
+
+/// A comment with the key that orders the comments placed at one spot:
+/// the kind of attachment (trailing on the line of the specifier, leading, trailing on a later line),
+/// the index among the comments of that kind of its specifier, and the output position of its specifier.
+type PlacedComment<'a> = ((u8, usize, usize), SpecifierComment<'a>);
+
+/// Comments placed around one specifier of the printed declarations.
+#[derive(Default)]
+struct PlacedComments<'a> {
+    /// Comments printed before the specifier.
+    leading: Vec<PlacedComment<'a>>,
+    /// Comments printed after the specifier on its line.
+    trailing: Vec<PlacedComment<'a>>,
+}
+
+/// Print `declarations`, which come in this order in the output.
+///
+/// With `sort_specifiers`, the named specifiers are ordered like `sort_named_specifiers` in the import printer.
+///
+/// Comments are placed the way `@ianvs/prettier-plugin-sort-imports` reattaches them:
+/// - A trailing comment on the line of its specifier stays after it.
+///   Other trailing comments go below the last specifier of the declaration.
+/// - A leading comment on the line where a different specifier starts (the first one in the output)
+///   goes after that specifier. Other leading comments stay before their specifier.
+fn render_declarations<const N: usize>(
+    mut declarations: [Declaration<'_, '_>; N],
+    source_text: &str,
+    attributes: &str,
+    source: &str,
+    options: &SortImportsOptions,
+) -> [String; N] {
+    if options.sort_specifiers {
+        for declaration in &mut declarations {
+            let is_type = declaration.is_type;
+            declaration.named.sort_by(|a, b| {
+                (!is_type && a.is_type).cmp(&(!is_type && b.is_type)).then_with(|| {
+                    let ordering = compare_names(
+                        &normalize_name(a.local, options),
+                        &normalize_name(b.local, options),
+                        options,
+                    );
+                    if options.order.is_desc() { ordering.reverse() } else { ordering }
+                })
+            });
+        }
+    }
+
+    // The specifiers in output order: declaration index, named index (`None` for the default), and start.
+    let outputs: Vec<(usize, Option<usize>, u32)> = declarations
+        .iter()
+        .enumerate()
+        .flat_map(|(decl_idx, declaration)| {
+            let default = declaration.default.map(|default| (decl_idx, None, default.span.start));
+            let named = declaration.named.iter().enumerate().map(move |(named_idx, specifier)| {
+                (decl_idx, Some(named_idx), specifier.span.start)
+            });
+            default.into_iter().chain(named)
+        })
+        .collect();
+    let same_line = |a: u32, b: u32| !has_line_break(source, a.min(b), a.max(b));
+
+    let mut placed: Vec<PlacedComments> =
+        outputs.iter().map(|_| PlacedComments::default()).collect();
+    let mut after: [Vec<PlacedComment>; N] = std::array::from_fn(|_| vec![]);
+    for (pos, &(decl_idx, named_idx, start)) in outputs.iter().enumerate() {
+        let Some(named_idx) = named_idx else { continue };
+        let specifier = declarations[decl_idx].named[named_idx];
+        for (counter, &comment) in specifier.trailing.iter().enumerate() {
+            if same_line(start, comment.span.start) {
+                placed[pos].trailing.push(((0, counter, pos), comment));
+            } else {
+                after[decl_idx].push(((2, counter, pos), comment));
             }
         }
-        out.push('}');
-    } else if !named.is_empty() {
-        out.push_str("{ ");
-        for (i, specifier) in named.iter().enumerate() {
-            if i > 0 {
+        for (counter, &comment) in specifier.leading.iter().enumerate() {
+            let owner =
+                outputs.iter().position(|&(_, _, start)| same_line(start, comment.span.start));
+            match owner {
+                Some(owner) if owner != pos => {
+                    placed[owner].trailing.push(((1, counter, pos), comment));
+                }
+                _ => placed[pos].leading.push(((1, counter, pos), comment)),
+            }
+        }
+    }
+    for comments in &mut placed {
+        comments.leading.sort_by_key(|(key, _)| *key);
+        comments.trailing.sort_by_key(|(key, _)| *key);
+    }
+    for comments in &mut after {
+        comments.sort_by_key(|(key, _)| *key);
+    }
+
+    let mut texts = std::array::from_fn(|_| String::new());
+    let mut pos = 0;
+    for (decl_idx, declaration) in declarations.iter().enumerate() {
+        let out = &mut texts[decl_idx];
+        out.push_str("import ");
+        if declaration.is_type {
+            out.push_str("type ");
+        }
+        if let Some(default) = declaration.default {
+            out.push_str(default.text);
+            let trailing = &placed[pos].trailing;
+            push_trailing_comments(out, trailing);
+            if trailing.last().is_some_and(|(_, comment)| comment.is_line()) {
+                out.push('\n');
+            }
+            pos += 1;
+            if !declaration.named.is_empty() {
                 out.push_str(", ");
             }
-            if !is_type && specifier.is_type {
-                out.push_str("type ");
-            }
-            out.push_str(specifier.text);
         }
-        out.push_str(" }");
+
+        let named_placed = &placed[pos..pos + declaration.named.len()];
+        let has_comments = !after[decl_idx].is_empty()
+            || named_placed
+                .iter()
+                .any(|comments| !comments.leading.is_empty() || !comments.trailing.is_empty());
+        if has_comments {
+            out.push('{');
+            let mut after_line_comment = false;
+            for (specifier, comments) in declaration.named.iter().zip(named_placed) {
+                // Babel prints a single-line block comment that comes first on the line of the `{` or comma before it.
+                let first_on_prev_line = !after_line_comment
+                    && comments.leading.first().is_some_and(|(_, comment)| {
+                        !comment.is_line() && !comment.text.contains(is_line_terminator)
+                    });
+                out.push(if first_on_prev_line { ' ' } else { '\n' });
+                push_leading_comments(out, &comments.leading, specifier.span.start, source);
+                if !declaration.is_type && specifier.is_type {
+                    out.push_str("type ");
+                }
+                out.push_str(specifier.text);
+                push_trailing_comments(out, &comments.trailing);
+                after_line_comment =
+                    comments.trailing.last().is_some_and(|(_, comment)| comment.is_line());
+                if after_line_comment {
+                    out.push('\n');
+                }
+                out.push(',');
+            }
+            out.push('\n');
+            for (_, comment) in &after[decl_idx] {
+                out.push_str(comment.text);
+                out.push('\n');
+            }
+            out.push('}');
+        } else if !declaration.named.is_empty() {
+            out.push_str("{ ");
+            for (i, specifier) in declaration.named.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                if !declaration.is_type && specifier.is_type {
+                    out.push_str("type ");
+                }
+                out.push_str(specifier.text);
+            }
+            out.push_str(" }");
+        }
+        pos += declaration.named.len();
+
+        out.push_str(" from ");
+        out.push_str(source_text);
+        if !attributes.is_empty() {
+            out.push(' ');
+            out.push_str(attributes.trim_start());
+        }
     }
-    out.push_str(" from ");
-    out.push_str(source_text);
-    if !attributes.is_empty() {
-        out.push(' ');
-        out.push_str(attributes.trim_start());
+    texts
+}
+
+/// Print `comments` before a specifier that starts at `specifier_start`, with the line breaks Babel prints.
+fn push_leading_comments(
+    out: &mut String,
+    comments: &[PlacedComment<'_>],
+    specifier_start: u32,
+    source: &str,
+) {
+    let (Some((_, first)), Some((_, last))) = (comments.first(), comments.last()) else {
+        return;
+    };
+    let mut prev_end = None;
+    for (_, comment) in comments {
+        if let Some(prev_end) = prev_end {
+            out.push(if has_line_break(source, prev_end, comment.span.start) { '\n' } else { ' ' });
+        }
+        out.push_str(comment.text);
+        prev_end = Some(comment.span.end);
     }
-    out
+    let breaks_after = first.is_line()
+        || first.text.contains(is_line_terminator)
+        || last.is_line()
+        || has_line_break(source, last.span.end, specifier_start);
+    out.push(if breaks_after { '\n' } else { ' ' });
+}
+
+/// Print `comments` after a specifier on its line.
+fn push_trailing_comments(out: &mut String, comments: &[PlacedComment<'_>]) {
+    let mut after_line_comment = false;
+    for (_, comment) in comments {
+        out.push(if after_line_comment { '\n' } else { ' ' });
+        out.push_str(comment.text);
+        after_line_comment = comment.is_line();
+    }
 }
 
 /// Apply `rewrites` to the source of `program` in place, for sorting without `hoist`.
@@ -626,7 +798,7 @@ fn attached_comments<'c>(
 /// `span` widened to its whole line, with the line break, when nothing else is on its line.
 /// A comment after `span` on its line stays.
 #[expect(clippy::cast_possible_truncation)] // Offsets fit in `u32`, source length does
-fn line_range(source: &str, span: oxc_span::Span) -> Range<u32> {
+fn line_range(source: &str, span: Span) -> Range<u32> {
     let bytes = source.as_bytes();
     let mut start = span.start as usize;
     while start > 0 && matches!(bytes[start - 1], b' ' | b'\t') {
