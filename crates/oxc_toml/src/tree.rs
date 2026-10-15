@@ -55,9 +55,7 @@ impl Node {
         &source[self.span.start as usize..self.span.end as usize]
     }
 
-    pub fn first_child(&self) -> Option<&Element> {
-        self.children.first()
-    }
+    // JHPATCH: `first_child()` removed; the formatter finds the KEY node of a table header instead
 
     /// Iterator over all descendants (depth-first)
     pub fn descendants(&self) -> impl Iterator<Item = &Element> {

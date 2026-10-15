@@ -55,6 +55,26 @@ describe("TOML files (oxc_formatter_toml)", () => {
     `);
   });
 
+  // The expected output is Taplo's (`@taplo/lib`).
+  it("should indent subtables with indentTables", async () => {
+    const source = `[a]\nx = 1\n[a.b]\ny = 2\n["a".b.c]\nz = 3\n[d]\nw = 4\n[[a.e]]\nv = 5\n`;
+    const result = await format("a.toml", source, { toml: { indentTables: true } });
+    expect(result.errors).toStrictEqual([]);
+    expect(result.code).toMatchInlineSnapshot(`
+      "[a]
+      x = 1
+        [a.b]
+        y = 2
+          ["a".b.c]
+          z = 3
+      [d]
+      w = 4
+        [[a.e]]
+        v = 5
+      "
+    `);
+  });
+
   it("should apply toml options to Markdown code blocks", async () => {
     const source = "```toml\na = 1\nbbbbb = 2\n```\n";
     const result = await format("a.md", source, { toml: { alignEntries: true } });

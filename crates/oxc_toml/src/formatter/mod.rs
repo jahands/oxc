@@ -24,7 +24,9 @@ impl Keys {
         if let Some(node) = syntax.as_node() {
             for child in node.children_with_tokens() {
                 if child.kind() == IDENT {
-                    keys.push(child.to_string(source));
+                    // JHPATCH: Compare quoted keys by their text without quotes, so `"a"` is the parent of `a.b`
+                    let text = child.text(source);
+                    keys.push(text.trim_matches(|c| c == '"' || c == '\'').to_string());
                 }
             }
         }
@@ -328,7 +330,12 @@ fn format_root(node: &SyntaxNode, source: &str, options: &Options, context: &Con
                         context.indent_level = 1;
                     }
 
-                    if let Some(key) = node.first_child().map(|e| Keys::from_syntax(e, source)) {
+                    // JHPATCH: Read the header's KEY node; the first child is the `[` token, which made every key empty and `indent_tables` a no-op
+                    if let Some(key) = node
+                        .children_with_tokens()
+                        .find(|e| e.kind() == KEY)
+                        .map(|e| Keys::from_syntax(e, source))
+                    {
                         if options.indent_tables {
                             context.indent_level = table_indent_level(
                                 &table_key_indent_history,
