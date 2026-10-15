@@ -6,6 +6,8 @@ use std::{
     sync::OnceLock,
 };
 
+use crate::pipeline::platform::Avx2;
+
 /// Single copy of [`PairLuts`], shared across all threads.
 ///
 /// `Box<PairLuts>` not `PairLuts`, to avoid uninitialized `PairLuts` being stored
@@ -95,8 +97,8 @@ impl PairLuts {
 
 /// Initialize the global [`PairLuts`] instance.
 ///
-/// This method must be called before calling [`get_pair_luts`].
-pub fn init_pair_luts_avx2() {
+/// This function must be called before calling [`get_pair_luts`].
+pub fn init_pair_luts_avx2(_feat: Avx2) {
     PAIR_LUTS.get_or_init(PairLuts::new);
 }
 

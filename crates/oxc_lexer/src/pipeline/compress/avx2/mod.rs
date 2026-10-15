@@ -7,11 +7,16 @@ use crate::{
     token::{TRIVIA_MAX, TRIVIA_MIN, is_trivia_byte, tk},
 };
 
-use super::common::{emit_value, invalid_diags};
+use crate::pipeline::platform::Avx2;
+
+use super::{
+    common::{emit_value, invalid_diags},
+    compress_impl,
+};
 
 mod pair_luts;
 use pair_luts::get_pair_luts;
-pub use pair_luts::init_pair_luts_avx2;
+pub(super) use pair_luts::init_pair_luts_avx2;
 
 #[cfg(test)]
 mod tests;
@@ -54,7 +59,37 @@ const fn bcompact() -> [[u8; 16]; 256] {
     t
 }
 
+/// [`compress`] for AVX2.
+///
+/// Compiled with AVX2 enabled, and [`compress_impl`] is inlined into it.
+/// So the AVX2 functions which [`compress_impl`] calls can be inlined too
+/// (except [`compress_blocks_avx2`], which is `#[inline(never)]`).
+/// They can't be inlined into a function which doesn't have AVX2 enabled.
+///
+/// `#[inline(never)]` so it stays a separate function, like `compress_generic`.
+/// Without that, it'd be inlined into its caller in builds which enable AVX2 globally.
+///
+/// [`compress`]: super::compress
 #[inline(never)]
+#[target_feature(enable = "avx2,bmi2,popcnt")]
+pub(super) unsafe fn compress_avx2(
+    src: &[u8],
+    n: usize,
+    nb: usize,
+    st: *const u64,
+    kind: *const u8,
+    stage_pos: *mut u32,
+    stage_kind: *mut u8,
+    out_kinds: *mut u8,
+    out_spans: *mut Span,
+    lanes: &mut Lanes,
+    feat: Avx2,
+) -> usize {
+    compress_impl(src, n, nb, st, kind, stage_pos, stage_kind, out_kinds, out_spans, lanes, feat)
+}
+
+#[inline(never)]
+#[target_feature(enable = "avx2,bmi2,popcnt")]
 pub(super) unsafe fn compress_blocks_avx2(
     st: *const u64,
     kind: *const u8,
@@ -62,8 +97,9 @@ pub(super) unsafe fn compress_blocks_avx2(
     b1: usize,
     starts: *mut u32,
     kinds: *mut u8,
+    _feat: Avx2,
 ) -> usize {
-    // SAFETY: `init_pair_luts` has always been called in `Lexer::new` on AVX2 builds
+    // SAFETY: `Lexer::new` calls `init_pair_luts`, which initializes `PairLuts` if the platform is AVX2
     let pair_luts = unsafe { get_pair_luts() };
     let lut0z = pair_luts.lut0z.as_ptr().cast::<u8>();
     let lutpad = pair_luts.lutpad.as_ptr().cast::<u8>();
@@ -112,12 +148,14 @@ pub(super) unsafe fn compress_blocks_avx2(
     m
 }
 
+#[target_feature(enable = "avx2,bmi2,popcnt")]
 pub(super) unsafe fn build_spans_avx2(
     stage_kind: *const u8,
     stage_pos: *const u32,
     m: usize,
     spans: *mut Span,
     sig_kinds: *mut u8,
+    _feat: Avx2,
 ) -> usize {
     let sp = spans.cast::<u64>();
     let mut w = 0usize;
@@ -175,6 +213,7 @@ pub(super) unsafe fn build_spans_avx2(
     w
 }
 
+#[target_feature(enable = "avx2,bmi2,popcnt")]
 pub(super) unsafe fn lanes_post_avx2(
     src: &[u8],
     out_kinds: *const u8,
@@ -182,6 +221,7 @@ pub(super) unsafe fn lanes_post_avx2(
     m: usize,
     nn: u32,
     lanes: &mut Lanes,
+    _feat: Avx2,
 ) {
     let v_num = _mm256_set1_epi8(tk!(Number) as i8);
     let v_big = _mm256_set1_epi8(tk!(BigInt) as i8);
