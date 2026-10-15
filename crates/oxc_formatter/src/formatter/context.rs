@@ -4,7 +4,8 @@ use oxc_span::{GetSpan, SourceType, Span};
 use rustc_hash::FxHashMap;
 
 use crate::{
-    ir_transform::ImportRewriteInfo, options::JsFormatOptions,
+    ir_transform::{HoistFacts, ImportRewriteInfo},
+    options::JsFormatOptions,
     utils::assignment_like::AssignmentLikeLayout,
 };
 
@@ -110,6 +111,9 @@ pub struct JsFormatContext<'ast> {
     // JHPATCH: Imports merged and split before formatting (sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
     /// What import sorting needs to know about the imports rewritten by [`crate::ir_transform::hoist_imports`].
     import_rewrite_info: ImportRewriteInfo,
+    // JHPATCH: Hoist result for the comment rules of the import chunk (sortImports.hoist)
+    /// Set when `sortImports.hoist` rewrote the source.
+    hoist_facts: Option<HoistFacts>,
 }
 
 impl std::fmt::Debug for JsFormatContext<'_> {
@@ -157,6 +161,8 @@ impl<'ast> JsFormatContext<'ast> {
             embedding_omits_semicolon: false,
             // JHPATCH: Imports merged and split before formatting (sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
             import_rewrite_info: ImportRewriteInfo::default(),
+            // JHPATCH: Hoist result for the comment rules of the import chunk (sortImports.hoist)
+            hoist_facts: None,
         }
     }
 
@@ -257,6 +263,16 @@ impl<'ast> JsFormatContext<'ast> {
 
     pub(crate) fn import_rewrite_info(&self) -> &ImportRewriteInfo {
         &self.import_rewrite_info
+    }
+
+    // JHPATCH: Hoist result for the comment rules of the import chunk (sortImports.hoist)
+    pub(crate) fn set_hoist_facts(&mut self, facts: Option<HoistFacts>) {
+        self.hoist_facts = facts;
+    }
+
+    // JHPATCH: Hoist result for the comment rules of the import chunk (sortImports.hoist)
+    pub(crate) fn hoist_facts(&self) -> Option<&HoistFacts> {
+        self.hoist_facts.as_ref()
     }
 
     /// Push a Tailwind context entry onto the stack.
