@@ -1,0 +1,35 @@
+{
+  "printWidth": 100,
+  "plugins": ["@ianvs/prettier-plugin-sort-imports"],
+  "importOrder": [
+    "",
+    "<BUILTIN_MODULES>",
+    "^n",
+    "react",
+    "<THIRD_PARTY_MODULES>",
+    "",
+    "^(?!.*[.]css$)[./].*$",
+    "",
+    "",
+    "^[.]",
+    ".css$",
+    ""
+  ],
+  "importOrderCaseSensitive": true,
+  "importOrderSafeSideEffects": ["^server-only$"],
+  "importOrderParserPlugins": ["typescript", "jsx", "decorators-legacy"],
+  "overrides": [
+    {
+      "files": "*.test.ts",
+      "options": { "importOrder": ["^vitest", "<THIRD_PARTY_MODULES>", "^[.]"] }
+    },
+    {
+      "files": "legacy/**",
+      "options": { "importOrder": [] }
+    },
+    {
+      "files": "modern/**",
+      "options": { "importOrderTypeScriptVersion": "5.4.0", "importOrderCaseSensitive": false }
+    }
+  ]
+}
