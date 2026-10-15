@@ -377,7 +377,7 @@ fn parse<'a>(
 /// With `sortImports.hoist`, re-parse `program` from its source with the imports moved to the top
 /// ([`ir_transform::hoist_imports`]), when that changes the source.
 ///
-/// Also returns what the source looked like before, when it was rewritten.
+/// Also returns what the source looked like before.
 fn hoist_imports<'a>(
     allocator: &'a Allocator,
     program: &'a Program<'a>,
@@ -391,7 +391,10 @@ fn hoist_imports<'a>(
     let Some(hoisted) = ir_transform::hoist_imports(program, sort_imports, allocator) else {
         return (program, None);
     };
-    match parse(allocator, hoisted.source_text, program.source_type) {
+    let Some(source_text) = hoisted.source_text else {
+        return (program, Some(hoisted.facts));
+    };
+    match parse(allocator, source_text, program.source_type) {
         Ok(program) => (program, Some(hoisted.facts)),
         Err(_) => (program, None),
     }

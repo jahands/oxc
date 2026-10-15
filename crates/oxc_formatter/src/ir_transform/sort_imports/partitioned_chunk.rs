@@ -145,6 +145,7 @@ impl<'a> PartitionedChunk<'a> {
                             comment_height: 0,
                             follows_import: true,
                             has_trailing_comment: metadata.has_trailing_comment,
+                            keeps_position: false,
                         });
                     let is_side_effect = metadata.is_side_effect;
                     // JHPATCH: Trailing comment info for hoist and side effect blank lines
@@ -154,6 +155,8 @@ impl<'a> PartitionedChunk<'a> {
                         && sortable_imports.last().is_some_and(|prev| prev.has_trailing_comment);
                     let (group_idx, normalized_source, is_ignored) =
                         compute_import_metadata(metadata, group_matcher, options);
+                    // JHPATCH: Imports that keep their position before hoist (sortImports.hoist)
+                    let is_ignored = is_ignored || lines.keeps_position;
 
                     sortable_imports.push(SortableImport {
                         leading_lines: std::mem::take(&mut current_pending),

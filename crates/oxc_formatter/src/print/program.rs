@@ -286,6 +286,7 @@ impl<'a> ImportLineCounter<'a> {
             comment_height,
             follows_import: hoisted.is_none_or(|import| import.follows_import),
             has_trailing_comment,
+            keeps_position: hoisted.is_some_and(|import| import.keeps_position),
         });
     }
 }

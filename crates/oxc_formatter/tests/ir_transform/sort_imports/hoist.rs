@@ -637,6 +637,30 @@ import x, { y as z, type T } from 'x' with { type: "json" };
 import { a } from "a";
 "#,
     );
+    // Prettier also reads `prettier-ignore` after the import on its line.
+    assert_format(
+        r#"
+import   {z}   from "z"; // prettier-ignore
+"#,
+        HOIST,
+        r#"
+import { z } from "z"; // prettier-ignore
+"#,
+    );
+    // A type import of nothing keeps its position.
+    assert_format(
+        r#"
+import { b } from "b";
+import type {} from "x";
+import { a } from "a";
+"#,
+        HOIST,
+        r#"
+import { a } from "a";
+import type {} from "x";
+import { b } from "b";
+"#,
+    );
     // An import of nothing is a side effect import.
     assert_format(
         r#"

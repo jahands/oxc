@@ -94,6 +94,8 @@ pub struct ImportLines {
     pub follows_import: bool,
     /// Whether a comment starts after the import declaration on the line where it starts.
     pub has_trailing_comment: bool,
+    /// Whether the import keeps its position like a side effect import.
+    pub keeps_position: bool,
 }
 
 /// An IR transform that sorts import statements according to specified options.

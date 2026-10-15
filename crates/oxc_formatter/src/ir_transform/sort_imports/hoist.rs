@@ -33,8 +33,8 @@ use super::SortImportsOptions;
 /// a blank line separates the hashbang, or the comments after it or after the directives,
 /// from a first side effect import that has no comments before it.
 ///
-/// Returns `None` when the source already has this layout.
-/// Otherwise also returns the [`HoistFacts`] that the import sorting needs about the source.
+/// Returns `None` when the program has no imports.
+/// Also returns the [`HoistFacts`] that the import sorting needs about the source.
 #[expect(clippy::cast_possible_truncation)] // Offsets fit in `u32`, source length does
 pub fn hoist_imports<'a>(
     program: &Program<'a>,
@@ -91,9 +91,7 @@ pub fn hoist_imports<'a>(
         .map(|directive| directive.span.end)
         .or(hashbang_end)
         .unwrap_or(bom_len as u32);
-    // Ranges of each import with the comments it owns, the body index of the import,
-    // and the text that replaces the import.
-    let mut imports: Vec<(usize, Range<u32>, Option<String>)> = vec![];
+    let mut imports: Vec<HoistedImport> = vec![];
     let mut top_comments: &[Comment] = &[];
     for (idx, stmt) in body.iter().enumerate() {
         let Statement::ImportDeclaration(decl) = stmt else {
@@ -118,7 +116,8 @@ pub fn hoist_imports<'a>(
                 gap
             }
         };
-        // The comments that end up directly before the import, where Prettier reads `prettier-ignore`.
+        // The comments that end up directly before the import, where Prettier reads `prettier-ignore`,
+        // as it does in the comments after the import on its line.
         let is_ignored =
             if idx == 0 { comments_in(comments, prologue_end, start) } else { leading }
                 .iter()
@@ -154,6 +153,7 @@ pub fn hoist_imports<'a>(
             !comments_in(comments, with_clause.span.end, decl.span.end).is_empty()
         });
         let babel_text = if is_ignored
+            || trailing.iter().any(|comment| is_prettier_ignore(source, comment))
             || has_comment_after_with_clause
             || decl.specifiers.as_ref().is_some_and(|s| s.is_empty())
         {
@@ -161,7 +161,16 @@ pub fn hoist_imports<'a>(
         } else {
             None
         };
-        imports.push((idx, range, babel_text));
+        // `@ianvs/prettier-plugin-sort-imports` keeps an import of nothing in place,
+        // and one with `prettier-ignore` among all comments after the previous statement.
+        let keeps_position = (decl.import_kind.is_type()
+            && decl.specifiers.as_ref().is_some_and(|s| s.is_empty()))
+            || (!is_ignored
+                && idx > 0
+                && comments_in(comments, body[idx - 1].span().end, start)
+                    .iter()
+                    .any(|comment| is_prettier_ignore(source, comment)));
+        imports.push(HoistedImport { idx, range, babel_text, keeps_position });
     }
     removed.extend(top_comments.iter().map(|comment| comment.span.start..comment.span.end));
     removed.sort_unstable_by_key(|range| range.start);
@@ -263,7 +272,7 @@ pub fn hoist_imports<'a>(
     // Byte offset and line number in the source of the last import start counted.
     let mut line_cursor = (0, 0);
     let mut prev_import: Option<(usize, u32)> = None;
-    for (idx, range, babel_text) in imports {
+    for HoistedImport { idx, range, babel_text, keeps_position } in imports {
         let separator = match prev_import {
             Some((prev_idx, prev_end)) => {
                 let between = text(prev_end..range.start);
@@ -295,6 +304,7 @@ pub fn hoist_imports<'a>(
             start: (out.len() + decl_start - range.start as usize) as u32,
             line: line_cursor.1 as u32,
             follows_import: prev_import.is_none_or(|(prev_idx, _)| prev_idx + 1 == idx),
+            keeps_position,
         });
         prev_import = Some((idx, range.end));
         match babel_text {
@@ -323,10 +333,10 @@ pub fn hoist_imports<'a>(
         out.push_str(rest);
     }
 
-    if out == source.trim_end() {
-        return None;
-    }
-    out.push('\n');
+    let source_text = (out != source.trim_end()).then(|| {
+        out.push('\n');
+        allocator.alloc_str(&out)
+    });
     let has_top_of_file_comments = if has_prologue && first_import_idx == 0 {
         let first_import_start = body[0].span().start;
         comments_in(comments, prologue_end, first_import_start)
@@ -336,7 +346,7 @@ pub fn hoist_imports<'a>(
         !top_comments.is_empty()
     };
     Some(HoistedSource {
-        source_text: allocator.alloc_str(&out),
+        source_text,
         facts: HoistFacts {
             top_comments_followed_code: has_prologue
                 && first_import_idx > 0
@@ -349,7 +359,8 @@ pub fn hoist_imports<'a>(
 
 /// The source text written by [`hoist_imports`].
 pub struct HoistedSource<'a> {
-    pub source_text: &'a str,
+    /// `None` when the source already has the layout.
+    pub source_text: Option<&'a str>,
     pub facts: HoistFacts,
 }
 
@@ -377,6 +388,20 @@ pub struct HoistedImportFacts {
     pub line: u32,
     /// Whether the previous statement in the source was an import, or there was none.
     pub follows_import: bool,
+    /// Whether the import keeps its position like a side effect import.
+    pub keeps_position: bool,
+}
+
+/// A top-level import of the source.
+struct HoistedImport {
+    /// Index of the import in the program body.
+    idx: usize,
+    /// The import with the comments it owns.
+    range: Range<u32>,
+    /// The text that replaces the import declaration.
+    babel_text: Option<String>,
+    /// See [`HoistedImportFacts::keeps_position`].
+    keeps_position: bool,
 }
 
 /// The last part written before the imports.
