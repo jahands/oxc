@@ -1,0 +1,249 @@
+{
+  "bugs": {
+    "url": "https://b",
+    "email": "a@b.c"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://f"
+  },
+  "license": {
+    "type": "MIT",
+    "url": "https://l"
+  },
+  "author": {
+    "name": "A",
+    "email": "a@b.c",
+    "url": "https://a"
+  },
+  "maintainers": [
+    {
+      "name": "M",
+      "url": "https://m"
+    },
+    "Plain <p@q.r>"
+  ],
+  "contributors": [
+    {
+      "name": "C",
+      "email": "c@d.e"
+    }
+  ],
+  "bin": "./cli.js",
+  "directories": {
+    "lib": "l",
+    "bin": "b",
+    "man": "m",
+    "doc": "d",
+    "example": "e",
+    "test": "t",
+    "zz": "z"
+  },
+  "workspaces": {
+    "packages": [
+      "apps/*",
+      "packages/*"
+    ],
+    "catalog": {
+      "@a/b": "1",
+      "react": "19",
+      "React": "1"
+    },
+    "catalogs": {
+      "b": {},
+      "a": {}
+    },
+    "nohoist": [
+      "x"
+    ]
+  },
+  "binary": {
+    "module_name": "m",
+    "module_path": "p",
+    "host": "h",
+    "zz": 1
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged",
+      "commit-msg": "commitlint",
+      "pre-push": "test",
+      "custom": "x"
+    },
+    "skipCI": true
+  },
+  "simple-git-hooks": {
+    "pre-commit": "lint-staged",
+    "commit-msg": "x",
+    "pre-push": "test",
+    "preserveUnused": true
+  },
+  "lint-staged": {
+    "*.ts": "eslint",
+    "*.js": "eslint"
+  },
+  "config": {
+    "a": 1,
+    "b": {
+      "z": 1,
+      "a": 2
+    }
+  },
+  "prettier": {
+    "Zed": 1,
+    "arrowParens": "avoid",
+    "semi": false,
+    "overrides": [
+      {
+        "files": "*.json",
+        "options": {
+          "parser": "json",
+          "tabWidth": 4
+        }
+      }
+    ]
+  },
+  "eslintConfig": {
+    "env": {
+      "browser": true,
+      "node": true
+    },
+    "parserOptions": {
+      "ecmaVersion": 2024,
+      "sourceType": "module"
+    },
+    "settings": {
+      "a": {
+        "y": 1,
+        "b": 2
+      },
+      "z": 1
+    },
+    "extends": [
+      "x"
+    ],
+    "rules": {
+      "a": "error",
+      "B": "off",
+      "z": "off",
+      "plugin/a": "error",
+      "plugin/b": "warn",
+      "x/y/z": "off"
+    },
+    "overrides": [
+      {
+        "files": [
+          "*.ts"
+        ],
+        "env": {
+          "node": true
+        },
+        "rules": {
+          "a": 1,
+          "b": 1,
+          "a/b": 1
+        }
+      }
+    ],
+    "globals": {
+      "a": "readonly",
+      "b": "readonly"
+    },
+    "root": true,
+    "zzz": true
+  },
+  "jest": {
+    "collectCoverage": true,
+    "moduleNameMapper": {
+      "z": "1",
+      "a": "2"
+    },
+    "testMatch": [
+      "x"
+    ]
+  },
+  "oclif": {
+    "bin": "x",
+    "commands": "./dist",
+    "topics": {
+      "a": {
+        "description": "a"
+      },
+      "z": {
+        "description": "z"
+      }
+    }
+  },
+  "dependenciesMeta": {
+    "@scope/pkg@1.0.0": {
+      "optional": true
+    },
+    "@scope/pkg": {},
+    "bar": {
+      "unplugged": true
+    },
+    "foo@2.0.0": {
+      "built": false,
+      "injected": true
+    },
+    "foo@1.0.0": {
+      "injected": true
+    }
+  },
+  "peerDependenciesMeta": {
+    "a": {
+      "optional": true
+    },
+    "z": {
+      "b": {
+        "a": 2,
+        "z": 1
+      },
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": "22",
+    "pnpm": "10"
+  },
+  "volta": {
+    "node": "22",
+    "npm": "10",
+    "yarn": "1",
+    "extends": "../package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "dist/index.js",
+    "registry": "https://r",
+    "tag": "next"
+  },
+  "pnpm": {
+    "peerDependencyRules": {
+      "allowedVersions": {},
+      "ignoreMissing": []
+    },
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
+    "overrides": {
+      "@scope/x@>=1 <2": "1",
+      "@scope/x": "1",
+      "bar@1>baz": "1",
+      "Bar": "1",
+      "foo": "0",
+      "foo@1.0.0-beta": "1",
+      "foo@1.0.0": "1",
+      "foo@^2.0.0": "2"
+    },
+    "patchedDependencies": {
+      "a@1": "p",
+      "z@1": "p"
+    },
+    "zeta": {
+      "overrides": 2,
+      "patchedDependencies": 1,
+      "a": 3
+    }
+  }
+}

@@ -170,13 +170,13 @@
       "markdownDescription": "Sort import statements.\n\nUses a similar algorithm to [eslint-plugin-perfectionist/sort-imports](https://perfectionist.dev/rules/sort-imports).\n\nPass `true` or an object to enable, `false` to disable.\n\n- Languages: JS, JSX, TS, TSX\n- Default: Disabled"
     },
     "sortPackageJson": {
-      "description": "Sort `package.json` keys.\n\nThe order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),\nbut we believe it is clearer and easier to navigate.\n\n- Languages: JSON (`package.json` only)\n- Default: `true`",
+      "description": "Sort `package.json` keys.\n\nThe default order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),\nbut we believe it is clearer and easier to navigate.\nSet `order` to `\"sort-package-json\"` for the order prettier-plugin-packagejson produces.\n\n- Languages: JSON (`package.json` only)\n- Default: `true`",
       "allOf": [
         {
           "$ref": "#/definitions/SortPackageJsonUserConfig"
         }
       ],
-      "markdownDescription": "Sort `package.json` keys.\n\nThe order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),\nbut we believe it is clearer and easier to navigate.\n\n- Languages: JSON (`package.json` only)\n- Default: `true`"
+      "markdownDescription": "Sort `package.json` keys.\n\nThe default order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),\nbut we believe it is clearer and easier to navigate.\nSet `order` to `\"sort-package-json\"` for the order prettier-plugin-packagejson produces.\n\n- Languages: JSON (`package.json` only)\n- Default: `true`"
     },
     "sortTailwindcss": {
       "description": "Sort Tailwind CSS classes.\n\nUses the same algorithm as [prettier-plugin-tailwindcss](https://github.com/tailwindlabs/prettier-plugin-tailwindcss).\nOption names omit the `tailwind` prefix used in the original plugin (e.g. `config` instead of `tailwindConfig`).\n\nPass `true` or an object to enable, `false` to disable.\n\n- Languages: JS, JSX, TS, TSX, HTML, Vue, Angular, Handlebars, CSS, SCSS, Less, Svelte, Astro\n- Default: Disabled",
@@ -500,13 +500,13 @@
           "markdownDescription": "Sort import statements.\n\nUses a similar algorithm to [eslint-plugin-perfectionist/sort-imports](https://perfectionist.dev/rules/sort-imports).\n\nPass `true` or an object to enable, `false` to disable.\n\n- Languages: JS, JSX, TS, TSX\n- Default: Disabled"
         },
         "sortPackageJson": {
-          "description": "Sort `package.json` keys.\n\nThe order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),\nbut we believe it is clearer and easier to navigate.\n\n- Languages: JSON (`package.json` only)\n- Default: `true`",
+          "description": "Sort `package.json` keys.\n\nThe default order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),\nbut we believe it is clearer and easier to navigate.\nSet `order` to `\"sort-package-json\"` for the order prettier-plugin-packagejson produces.\n\n- Languages: JSON (`package.json` only)\n- Default: `true`",
           "allOf": [
             {
               "$ref": "#/definitions/SortPackageJsonUserConfig"
             }
           ],
-          "markdownDescription": "Sort `package.json` keys.\n\nThe order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),\nbut we believe it is clearer and easier to navigate.\n\n- Languages: JSON (`package.json` only)\n- Default: `true`"
+          "markdownDescription": "Sort `package.json` keys.\n\nThe default order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),\nbut we believe it is clearer and easier to navigate.\nSet `order` to `\"sort-package-json\"` for the order prettier-plugin-packagejson produces.\n\n- Languages: JSON (`package.json` only)\n- Default: `true`"
         },
         "sortTailwindcss": {
           "description": "Sort Tailwind CSS classes.\n\nUses the same algorithm as [prettier-plugin-tailwindcss](https://github.com/tailwindlabs/prettier-plugin-tailwindcss).\nOption names omit the `tailwind` prefix used in the original plugin (e.g. `config` instead of `tailwindConfig`).\n\nPass `true` or an object to enable, `false` to disable.\n\n- Languages: JS, JSX, TS, TSX, HTML, Vue, Angular, Handlebars, CSS, SCSS, Less, Svelte, Astro\n- Default: Disabled",
@@ -937,12 +937,28 @@
     "SortPackageJsonConfig": {
       "type": "object",
       "properties": {
+        "order": {
+          "description": "The field order and nested sorting rules.\n\n- `\"oxfmt\"`: Oxfmt's own order.\n- `\"sort-package-json\"`: the order of the [sort-package-json](https://github.com/keithamus/sort-package-json) npm package 3.5.0,\nwhich prettier-plugin-packagejson uses. `sortScripts` has no effect:\n`scripts` are sorted with `pre<name>` and `post<name>` next to `<name>`,\nunless an `npm-run-all` script runs a glob sequentially.\n\n- Default: `\"oxfmt\"`",
+          "allOf": [
+            {
+              "$ref": "#/definitions/SortPackageJsonOrderConfig"
+            }
+          ],
+          "markdownDescription": "The field order and nested sorting rules.\n\n- `\"oxfmt\"`: Oxfmt's own order.\n- `\"sort-package-json\"`: the order of the [sort-package-json](https://github.com/keithamus/sort-package-json) npm package 3.5.0,\nwhich prettier-plugin-packagejson uses. `sortScripts` has no effect:\n`scripts` are sorted with `pre<name>` and `post<name>` next to `<name>`,\nunless an `npm-run-all` script runs a glob sequentially.\n\n- Default: `\"oxfmt\"`"
+        },
         "sortScripts": {
           "description": "Sort the `scripts` field alphabetically.\n\n- Default: `false`",
           "type": "boolean",
           "markdownDescription": "Sort the `scripts` field alphabetically.\n\n- Default: `false`"
         }
       }
+    },
+    "SortPackageJsonOrderConfig": {
+      "type": "string",
+      "enum": [
+        "oxfmt",
+        "sort-package-json"
+      ]
     },
     "SortPackageJsonUserConfig": {
       "anyOf": [

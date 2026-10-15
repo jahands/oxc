@@ -10,6 +10,7 @@
 //! # Ok::<(), serde_json::Error>(())
 //! ```
 
+mod js_compat;
 mod value;
 
 use std::borrow::Cow;
@@ -27,13 +28,31 @@ pub struct SortOptions {
     pub pretty: bool,
     /// Whether to sort the scripts field alphabetically.
     pub sort_scripts: bool,
+    /// The field order and nested sorting rules.
+    pub order: SortOrder,
+}
+
+/// The field order and nested sorting rules applied by [`sort_package_json_with_options`].
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
+#[non_exhaustive]
+pub enum SortOrder {
+    /// The order of this crate.
+    #[default]
+    Default,
+    /// The order of the [`sort-package-json`](https://github.com/keithamus/sort-package-json)
+    /// npm package 3.5.0, which `prettier-plugin-packagejson` uses.
+    ///
+    /// [`SortOptions::sort_scripts`] has no effect: `scripts` and `betterScripts` are sorted
+    /// with `pre<name>` and `post<name>` next to `<name>`, unless an `npm-run-all` script runs
+    /// a glob sequentially.
+    SortPackageJson,
 }
 
 impl SortOptions {
     /// Creates options with the default behavior.
     #[must_use]
     pub const fn new() -> Self {
-        Self { pretty: true, sort_scripts: false }
+        Self { pretty: true, sort_scripts: false, order: SortOrder::Default }
     }
 
     /// Sets whether the output is pretty-printed.
@@ -47,6 +66,13 @@ impl SortOptions {
     #[must_use]
     pub const fn with_sort_scripts(mut self, sort_scripts: bool) -> Self {
         self.sort_scripts = sort_scripts;
+        self
+    }
+
+    /// Sets the field order and nested sorting rules.
+    #[must_use]
+    pub const fn with_order(mut self, order: SortOrder) -> Self {
+        self.order = order;
         self
     }
 }
@@ -75,7 +101,10 @@ pub fn sort_package_json_with_options(
     let value: Value<'_> = serde_json::from_str(body)?;
 
     let sorted = match value {
-        Value::Object(obj) => Value::Object(sort_object_keys(obj, options)),
+        Value::Object(obj) => Value::Object(match options.order {
+            SortOrder::Default => sort_object_keys(obj, options),
+            SortOrder::SortPackageJson => js_compat::sort_package_json(obj),
+        }),
         other => other,
     };
 

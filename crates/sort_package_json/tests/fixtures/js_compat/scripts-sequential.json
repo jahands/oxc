@@ -1,0 +1,11 @@
+{
+	"scripts": {
+		"test": "vitest",
+		"build:b": "tsc -p b",
+		"build:a": "tsc -p a",
+		"build": "run-s build:*",
+		"prebuild": "rimraf dist",
+		"lint": "eslint"
+	},
+	"devDependencies": { "npm-run-all2": "8.0.0" }
+}

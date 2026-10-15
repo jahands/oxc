@@ -1,0 +1,4 @@
+[
+  { "args": ["-c", "order.json", "package.json"] },
+  { "args": ["-c", "overrides.json", "package.json"] }
+]

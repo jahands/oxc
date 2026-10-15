@@ -1,0 +1,71 @@
+{
+  "name": "hide-error-cases",
+  "displayName": "Hide Error Cases",
+  "version": "0.1.0",
+  "description": "Folds error handling",
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "go",
+    "errors"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/example/ext"
+  },
+  "license": "MIT",
+  "qna": "marketplace",
+  "publisher": "example",
+  "main": "./dist/extension.js",
+  "scripts": {
+    "build": "tsc",
+    "vscode:prepublish": "pnpm build",
+    "watch": "tsc -w"
+  },
+  "l10n": "./l10n",
+  "contributes": {
+    "commands": [
+      {
+        "title": "Fold",
+        "command": "x"
+      }
+    ],
+    "configuration": {},
+    "menus": {}
+  },
+  "activationEvents": [
+    "onLanguage:go",
+    "onCommand:x"
+  ],
+  "devDependencies": {
+    "@types/node": "22.0.0",
+    "@types/vscode": "1.90.0"
+  },
+  "extensionPack": [
+    "a.a",
+    "b.b"
+  ],
+  "extensionDependencies": [
+    "a.a",
+    "z.z"
+  ],
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "icon": "icon.png",
+  "badges": [
+    {
+      "description": "d",
+      "url": "u",
+      "href": "h"
+    }
+  ],
+  "galleryBanner": {
+    "color": "#000",
+    "theme": "dark"
+  },
+  "preview": true,
+  "markdown": "github"
+}
