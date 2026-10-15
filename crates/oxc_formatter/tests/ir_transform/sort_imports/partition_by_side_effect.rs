@@ -137,6 +137,74 @@ import "./side";
 }
 
 #[test]
+fn should_skip_blank_line_before_side_effect_after_trailing_comment() {
+    let config = r#"{
+        "sortImports": {
+            "partitionBySideEffect": true,
+            "newlinesBetween": false,
+            "groups": ["value-external", { "newlinesBetween": true }, "type-import"]
+        }
+    }"#;
+    assert_format(
+        r#"
+import type { T } from "t"; // trailing comment
+import "./side";
+import { a } from "a";
+"#,
+        config,
+        r#"
+import type { T } from "t"; // trailing comment
+import "./side";
+
+import { a } from "a";
+"#,
+    );
+}
+
+#[test]
+fn should_keep_suppressed_imports_in_place_like_side_effects() {
+    assert_format(
+        r#"
+import { c } from "c";
+import { b } from "b";
+// prettier-ignore
+import   { x }   from "x";
+import "./side";
+import { a } from "a";
+"#,
+        r#"{ "sortImports": { "partitionBySideEffect": true } }"#,
+        r#"
+import { b } from "b";
+import { c } from "c";
+
+// prettier-ignore
+import   { x }   from "x";
+import "./side";
+
+import { a } from "a";
+"#,
+    );
+    // Without the option, a suppressed import ends the run and keeps its surrounding lines.
+    assert_format(
+        r#"
+import { c } from "c";
+import { b } from "b";
+// prettier-ignore
+import   { x }   from "x";
+import { a } from "a";
+"#,
+        r#"{ "sortImports": {} }"#,
+        r#"
+import { b } from "b";
+import { c } from "c";
+// prettier-ignore
+import   { x }   from "x";
+import { a } from "a";
+"#,
+    );
+}
+
+#[test]
 fn should_have_no_effect_when_side_effects_are_sorted() {
     assert_format(
         r#"

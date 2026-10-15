@@ -64,6 +64,31 @@ import { foo } from "@scope/foo";
     expect(result.errors).toStrictEqual([]);
   });
 
+  it("should hoist imports with hoist", async () => {
+    const input = `"use client";
+import { b } from "b";
+const x = 1;
+// About a.
+import { a } from "a";
+`;
+    const result = await format("a.ts", input, {
+      sortImports: { hoist: true },
+    });
+
+    expect(result.code).toBe(
+      `
+"use client";
+
+// About a.
+import { a } from "a";
+import { b } from "b";
+
+const x = 1;
+`.trimStart(),
+    );
+    expect(result.errors).toStrictEqual([]);
+  });
+
   it("should sort with partitionBySideEffect, collation and sortSpecifiers", async () => {
     const input = `import { z, type T, a } from "#lib/z";
 import { y } from "@scope/y";

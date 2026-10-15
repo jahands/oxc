@@ -594,7 +594,8 @@ pub struct SortImportsConfig {
     /// Use side effect imports to separate imports into logical groups.
     ///
     /// When `true`, imports are not sorted across a side effect import that keeps its position
-    /// (see `sortSideEffects`).
+    /// (see `sortSideEffects`), or across an import suppressed with `prettier-ignore` / `oxfmt-ignore`.
+    /// Suppressed imports get the same blank lines as side effect imports.
     ///
     /// If any group boundary inserts newlines (`newlinesBetween: true` or a `{ "newlinesBetween": true }` marker),
     /// a run of side effect imports also gets a blank line after it, and one before it.
@@ -656,6 +657,28 @@ pub struct SortImportsConfig {
     /// - Default: `false`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_specifiers: Option<bool>,
+    /// Move every top-level import into one block at the top of the file,
+    /// the way `@ianvs/prettier-plugin-sort-imports` does.
+    ///
+    /// The block follows the hashbang, the directives (and a blank line), and the comments directly after them.
+    /// A blank line separates the block from the rest of the file.
+    /// An import takes along the comments between the previous statement and itself,
+    /// except those on the line where the previous import starts, which stay with that import.
+    /// Comments that end on a line before the first import stay at the top of the block when imports are sorted.
+    /// A blank line separates an import's trailing comment from the next import's leading comment.
+    /// `export ... from` statements are not moved, and imports inside `declare module` blocks are not sorted.
+    ///
+    /// ```js
+    /// import { a } from 'a'
+    /// // Used by `run`.
+    /// import { b } from 'b'
+    ///
+    /// const x = 1
+    /// ```
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hoist: Option<bool>,
     /// Add newlines between groups.
     ///
     /// - Default: `true`

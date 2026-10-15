@@ -130,6 +130,7 @@ pub fn format_to_ir<'a>(
 ) -> Result<EmbeddedIr<'a>, OxcDiagnostic> {
     let allocator = session.allocator();
     let program = parse(allocator, allocator.alloc_str(source_text), source_type)?;
+    let program = hoist_imports(allocator, program, &options);
     let node = AstNode::new(program, AstNodes::Dummy(), allocator);
     let mut context =
         JsFormatContext::new(program.source_text, program.source_type, &program.comments, options);
@@ -303,6 +304,7 @@ fn format_program_with_session<'a>(
     program: &'a Program<'a>,
     options: JsFormatOptions,
 ) -> Formatted<'a, JsFormatContext<'a>> {
+    let program = hoist_imports(session.allocator(), program, &options);
     let node = AstNode::new(program, AstNodes::Dummy(), session.allocator());
     format_node(
         session,
@@ -361,6 +363,24 @@ fn parse<'a>(
     Ok(allocator.alloc(ret.program))
 }
 
+/// With `sortImports.hoist`, re-parse `program` from its source with the imports moved to the top
+/// ([`ir_transform::hoist_imports`]), when that changes the source.
+fn hoist_imports<'a>(
+    allocator: &'a Allocator,
+    program: &'a Program<'a>,
+    options: &JsFormatOptions,
+) -> &'a Program<'a> {
+    let Some(sort_imports) =
+        options.sort_imports.as_ref().filter(|sort_imports| sort_imports.hoist)
+    else {
+        return program;
+    };
+    let Some(source_text) = ir_transform::hoist_imports(program, sort_imports, allocator) else {
+        return program;
+    };
+    parse(allocator, source_text, program.source_type).unwrap_or(program)
+}
+
 /// Run the IR formatter over a single `Format` value and return its `Formatted` IR.
 ///
 /// The only site that invokes the IR `formatter::format`.
@@ -390,6 +410,9 @@ pub(crate) enum JsLabels {
     /// For `ir_transform/sort_imports`
     ImportDeclaration,
     /// For `ir_transform/sort_imports`
+    /// Wraps the verbatim text of a suppressed `ImportDeclaration`.
+    SuppressedImportDeclaration,
+    /// For `ir_transform/sort_imports`
     /// Wraps a single emitted comment so the transform can identify it without
     /// inspecting element shape (which varies by comment kind / `jsdoc` formatting).
     /// Also suppresses internal line breaks for multi-line block comments.
@@ -405,6 +428,7 @@ impl Label for JsLabels {
         match self {
             Self::MemberChain => "MemberChain",
             Self::ImportDeclaration => "ImportDeclaration",
+            Self::SuppressedImportDeclaration => "SuppressedImportDeclaration",
             Self::Comment => "Comment",
         }
     }

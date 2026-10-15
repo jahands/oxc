@@ -79,6 +79,7 @@ struct TestSortImportsConfig {
     ignore_case: Option<bool>,
     collation: Option<String>,
     sort_specifiers: Option<bool>,
+    hoist: Option<bool>,
     newlines_between: Option<bool>,
     internal_pattern: Option<Vec<String>>,
     #[serde(default, deserialize_with = "deserialize_groups")]
@@ -169,6 +170,9 @@ fn parse_test_config(json: &str) -> JsFormatOptions {
         }
         if let Some(v) = sort_config.sort_specifiers {
             sort_imports.sort_specifiers = v;
+        }
+        if let Some(v) = sort_config.hoist {
+            sort_imports.hoist = v;
         }
         if let Some(v) = sort_config.newlines_between {
             sort_imports.newlines_between = v;

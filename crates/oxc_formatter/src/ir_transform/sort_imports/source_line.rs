@@ -59,6 +59,7 @@ impl<'a> SourceLine<'a> {
         let mut seen_from_keyword = false;
 
         let import_label = LabelId::of(JsLabels::ImportDeclaration);
+        let suppressed_import_label = LabelId::of(JsLabels::SuppressedImportDeclaration);
         for idx in range.clone() {
             let element = &elements[idx];
 
@@ -66,6 +67,20 @@ impl<'a> SourceLine<'a> {
             if let FormatElement::Tag(Tag::StartLabelled(id)) = element {
                 if *id == import_label {
                     has_import = true;
+                } else if *id == suppressed_import_label {
+                    return SourceLine::Import(
+                        range.clone(),
+                        ImportLineMetadata {
+                            source: "",
+                            is_suppressed: true,
+                            has_trailing_comment: has_comment_after_import(elements, range),
+                            is_side_effect: false,
+                            is_type_import: false,
+                            has_default_specifier: false,
+                            has_namespace_specifier: false,
+                            has_named_specifier: false,
+                        },
+                    );
                 }
                 continue;
             }
@@ -136,9 +151,11 @@ impl<'a> SourceLine<'a> {
         }
 
         SourceLine::Import(
-            range,
+            range.clone(),
             ImportLineMetadata {
                 source: source.expect("`ImportDeclaration` must have a source"),
+                is_suppressed: false,
+                has_trailing_comment: has_comment_after_import(elements, range),
                 is_side_effect,
                 is_type_import,
                 has_default_specifier,
@@ -184,6 +201,11 @@ impl<'a> SourceLine<'a> {
 pub struct ImportLineMetadata<'a> {
     /// Index of the import source in the original `elements` slice.
     pub source: &'a str,
+    /// Whether this import is suppressed (`prettier-ignore` / `oxfmt-ignore`) and printed verbatim.
+    /// The fields other than `has_trailing_comment` are not computed for it.
+    pub is_suppressed: bool,
+    /// Whether a comment follows the import on its line.
+    pub has_trailing_comment: bool,
     /// Whether this is a side-effect-only import (e.g., `import "foo"`).
     pub is_side_effect: bool,
     /// Whether this is a type-only import (e.g., `import type { Foo } from "foo"`).
@@ -194,4 +216,32 @@ pub struct ImportLineMetadata<'a> {
     pub has_namespace_specifier: bool,
     /// Whether this import has named specifiers (e.g., `import { foo } from "foo"`).
     pub has_named_specifier: bool,
+}
+
+/// Whether a comment follows the import in `elements[range]`, a line that holds an import.
+fn has_comment_after_import(elements: &[FormatElement<'_>], range: Range<usize>) -> bool {
+    let import_label = LabelId::of(JsLabels::ImportDeclaration);
+    let suppressed_import_label = LabelId::of(JsLabels::SuppressedImportDeclaration);
+    let comment_label = LabelId::of(JsLabels::Comment);
+    let mut open_labels = vec![];
+    let mut after_import = false;
+    for element in &elements[range] {
+        match element {
+            FormatElement::Tag(Tag::StartLabelled(id)) => {
+                if after_import && *id == comment_label {
+                    return true;
+                }
+                open_labels.push(*id);
+            }
+            FormatElement::Tag(Tag::EndLabelled)
+                if open_labels
+                    .pop()
+                    .is_some_and(|id| id == import_label || id == suppressed_import_label) =>
+            {
+                after_import = true;
+            }
+            _ => {}
+        }
+    }
+    false
 }

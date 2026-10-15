@@ -11,6 +11,12 @@ pub struct SortableImport<'a> {
     /// Comments directly before this import (no empty line between).
     pub leading_lines: Vec<SourceLine<'a>>,
     pub import_line: SourceLine<'a>,
+    /// Index of `import_line` among the lines of its chunk, before sorting.
+    pub line_idx: usize,
+    /// Whether a comment follows the import on its line.
+    pub has_trailing_comment: bool,
+    /// Whether the import before this one in the source has a trailing comment.
+    pub follows_trailing_comment: bool,
     // These are used for sorting and computed by `compute_import_metadata()`
     pub group_idx: usize,
     pub normalized_source: Cow<'a, str>,
