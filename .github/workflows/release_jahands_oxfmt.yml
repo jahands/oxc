@@ -15,13 +15,16 @@ on:
         required: true
         type: boolean
         default: true
+  push:
+    branches:
+      - jh/npm-publish
 
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
 env:
-  VERSION: ${{ inputs.version }}
+  VERSION: ${{ inputs.version || '0.73.0-jh.0' }}
 
 jobs:
   check:
@@ -191,7 +194,7 @@ jobs:
           path: apps/oxfmt/src-js/*.node
 
   publish:
-    name: ${{ inputs.dry_run && 'Publish (dry run)' || 'Publish' }}
+    name: Publish
     needs: [build, build-freebsd]
     runs-on: ubuntu-latest
     permissions:
@@ -232,7 +235,7 @@ jobs:
         run: |
           npm --version
           flags=(--access public --tag latest --provenance)
-          if [ "$DRY_RUN" = "true" ]; then flags+=(--dry-run); fi
+          if [ "$DRY_RUN" != "false" ]; then flags+=(--dry-run); fi
 
           publish() {
             local name
@@ -249,7 +252,7 @@ jobs:
           done
 
           # npm publish can finish before package metadata and tarballs are available.
-          if [ "$DRY_RUN" != "true" ]; then
+          if [ "$DRY_RUN" = "false" ]; then
             node .github/scripts/wait-for-npm-packages.mjs "${npm_dir}"/*
           fi
 
