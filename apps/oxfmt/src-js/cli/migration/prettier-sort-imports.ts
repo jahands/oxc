@@ -1,6 +1,7 @@
 // JHPATCH: Translate @ianvs/prettier-plugin-sort-imports options to `sortImports` for `--migrate prettier`
 
 import { builtinModules } from "node:module";
+import { isDeepStrictEqual } from "node:util";
 
 export const IANVS_PLUGIN = "@ianvs/prettier-plugin-sort-imports";
 
@@ -136,7 +137,8 @@ export function migrateIanvsSortImports(
     groups.push(group);
   }
 
-  const { combine, isCaseSensitive } = readSortFlags(options, hasTypes);
+  const combine = !hasTypes && canCombineTypeAndValueImports(options);
+  const isCaseSensitive = options.importOrderCaseSensitive === true;
 
   if (isCaseSensitive) {
     warn(
@@ -149,26 +151,85 @@ export function migrateIanvsSortImports(
   ) {
     warn(`"importOrderSafeSideEffects" is not supported, side effect imports keep their position`);
   }
-  // `mergeDuplicates` without `splitTypeSpecifiers` merges type imports into value imports.
-  const canMerge = hasTypes || combine;
-  if (!canMerge) {
-    warn(
-      `"importOrderTypeScriptVersion" is below 4.5.0, so the plugin merges duplicate imports without combining type and value imports; Oxfmt cannot do that, "sortImports.mergeDuplicates" is left disabled`,
-    );
-  }
-
   return {
     partitionBySideEffect: true,
     collation: isCaseSensitive ? "natural" : "intl",
     ignoreCase: !isCaseSensitive,
     sortSpecifiers: true,
     hoist: true,
-    mergeDuplicates: canMerge,
+    mergeDuplicates: true,
     splitTypeSpecifiers: hasTypes,
+    combineTypeAndValueImports: combine,
     newlinesBetween: false,
     customGroups: [...customGroups, ...fallbackGroups],
     groups,
   };
+}
+
+// The `sortImports` keys that each plugin option affects.
+const KEYS_BY_OPTION: Record<string, string[]> = {
+  importOrder: ["customGroups", "groups", "splitTypeSpecifiers", "combineTypeAndValueImports"],
+  importOrderParserPlugins: ["combineTypeAndValueImports"],
+  importOrderTypeScriptVersion: ["combineTypeAndValueImports"],
+  importOrderCaseSensitive: ["collation", "ignoreCase"],
+  importOrderSafeSideEffects: [],
+};
+
+/**
+ * Build the `sortImports` value of each override, to be deep merged over the top-level one as Oxfmt does.
+ * An override gets only the keys that its own plugin options affect,
+ * so that overrides matching the same file combine their options as they do in Prettier.
+ *
+ * @param topLevelOptions - The top-level plugin options
+ * @param overrideOptions - The plugin options of each override
+ * @param warnings - Receives a message for each setting that cannot be reproduced
+ * @returns For each override, its `sortImports` value, or `undefined` to leave it unset
+ */
+export function migrateIanvsOverrides(
+  topLevelOptions: Record<string, unknown>,
+  overrideOptions: Record<string, unknown>[],
+  warnings: string[],
+): (Record<string, unknown> | false | undefined)[] {
+  // The top-level warnings are already reported.
+  const topLevel = migrateIanvsSortImports(topLevelOptions, [], "");
+  const results = overrideOptions.map((options) => {
+    if (Object.keys(options).length === 0) return undefined;
+    const merged = migrateIanvsSortImports(
+      { ...topLevelOptions, ...options },
+      warnings,
+      "overrides: ",
+    );
+    if (!topLevel) return merged || undefined;
+    if (!merged) return false;
+    const keys = new Set(Object.keys(options).flatMap((key) => KEYS_BY_OPTION[key] ?? []));
+    const picked = Object.fromEntries(Object.entries(merged).filter(([key]) => keys.has(key)));
+    return Object.keys(picked).length > 0 ? picked : undefined;
+  });
+
+  const mergeConfig = (
+    base: Record<string, unknown> | false,
+    overlay: Record<string, unknown> | false | undefined,
+  ) => {
+    if (overlay === undefined) return base;
+    return base && overlay ? { ...base, ...overlay } : overlay;
+  };
+  for (let j = 0; j < results.length; j++) {
+    for (let i = 0; i < j; i++) {
+      if (results[i] === undefined || results[j] === undefined) continue;
+      const expected = migrateIanvsSortImports(
+        { ...topLevelOptions, ...overrideOptions[i], ...overrideOptions[j] },
+        [],
+        "",
+      );
+      const actual = mergeConfig(mergeConfig(topLevel, results[i]), results[j]);
+      if (!isDeepStrictEqual(expected, actual)) {
+        warnings.push(
+          `overrides: files matched by both overrides[${i}] and overrides[${j}] get different "sortImports" options than the plugin options Prettier uses for them`,
+        );
+      }
+    }
+  }
+  return results;
 }
 
 // https://github.com/IanVS/prettier-plugin-sort-imports/blob/main/src/utils/normalize-plugin-options.ts
@@ -184,30 +245,33 @@ function normalizeImportOrder(importOrder: string[]): string[] {
   return result.map((p) => (p === BUILTIN_MODULES ? BUILTIN_MODULES_REGEX_STR : p));
 }
 
-function readSortFlags(options: Record<string, unknown>, hasTypes: boolean) {
+// https://github.com/IanVS/prettier-plugin-sort-imports/blob/main/src/utils/normalize-plugin-options.ts
+function canCombineTypeAndValueImports(options: Record<string, unknown>): boolean {
   const parserPlugins = Array.isArray(options.importOrderParserPlugins)
     ? options.importOrderParserPlugins
     : ["typescript", "jsx"];
-  // A plugin with options is passed as a JSON string, e.g. `'["typescript", { "dts": true }]'`.
-  const hasTypeScript = parserPlugins.some(
-    (p) => p === "typescript" || (typeof p === "string" && /^\[\s*"typescript"/.test(p)),
-  );
-  const tsVersion =
+  // A plugin with options is a JSON string (`'["typescript", { "dts": true }]'`), which the plugin does not count.
+  if (!parserPlugins.includes("typescript")) return true;
+  const version =
     typeof options.importOrderTypeScriptVersion === "string"
       ? options.importOrderTypeScriptVersion
       : "1.0.0";
-  const combine = !hasTypes && !(hasTypeScript && isVersionBelow(tsVersion, [4, 5, 0]));
-  return { combine, isCaseSensitive: options.importOrderCaseSensitive === true };
+  return !isSemverBelow(version, [4, 5, 0]);
 }
 
-// The plugin treats an invalid version as `1.0.0`.
-function isVersionBelow(version: string, target: [number, number, number]): boolean {
-  const match = /^v?(\d+)\.(\d+)\.(\d+)/.exec(version.trim());
+// https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string, with an optional `v`
+const SEMVER_REGEX =
+  /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$/;
+
+// `semver.lt(version, target)`; the plugin replaces a version that is not valid semver with `1.0.0`.
+function isSemverBelow(version: string, target: [number, number, number]): boolean {
+  const match = SEMVER_REGEX.exec(version.trim());
   const parts = match ? [Number(match[1]), Number(match[2]), Number(match[3])] : [1, 0, 0];
   for (let i = 0; i < 3; i++) {
     if (parts[i] !== target[i]) return parts[i] < target[i];
   }
-  return false;
+  // A prerelease is below its release.
+  return match?.[4] !== undefined;
 }
 
 // ---
@@ -227,6 +291,12 @@ type RegexNode =
 
 const MAX_GLOBS = 16;
 
+// Regex `.`, which matches `/`; glob `?` does not.
+const ANY_CHAR: RegexNode = {
+  kind: "alt",
+  alternatives: [[{ kind: "text", glob: "?" }], [{ kind: "text", glob: "/" }]],
+};
+
 /**
  * Convert a JavaScript regex source to glob patterns that `sortImports.customGroups[].elementNamePattern`
  * matches against the same import sources.
@@ -236,7 +306,7 @@ const MAX_GLOBS = 16;
  *
  * @returns The globs, or `null` when the regex uses anything else
  */
-function regexToGlobs(source: string): string[] | null {
+export function regexToGlobs(source: string): string[] | null {
   let alternatives: RegexNode[][];
   try {
     new RegExp(source);
@@ -303,7 +373,7 @@ class RegexParser {
       case "$":
         return { kind: "end" };
       case ".":
-        return { kind: "text", glob: "?" };
+        return ANY_CHAR;
       case "[":
         return this.parseClass();
       case "\\":
@@ -410,7 +480,7 @@ class RegexParser {
     if (atom.kind === "start" || atom.kind === "end" || atom.kind === "notAhead") {
       throw new Error("unsupported quantifier");
     }
-    const isAnyChar = atom.kind === "text" && atom.glob === "?";
+    const isAnyChar = atom === ANY_CHAR;
     const isNonSlash = atom.kind === "text" && atom.glob === "[!/]";
     const [, symbol, minText, comma, maxText] = match;
     let min = Number(minText);
@@ -422,10 +492,10 @@ class RegexParser {
 
     if (max === Infinity) {
       if (!isAnyChar && !isNonSlash) throw new Error("unsupported quantifier");
-      const repeated: RegexNode[] = Array.from({ length: min }, () => ({
-        kind: "text",
-        glob: "?",
-      }));
+      // `[^/]` is `?`.
+      const repeated: RegexNode[] = Array.from({ length: min }, () =>
+        isAnyChar ? ANY_CHAR : { kind: "text", glob: "?" },
+      );
       return [...repeated, isAnyChar ? { kind: "any" } : { kind: "segment" }];
     }
     if (max < min || max > 10) throw new Error("unsupported quantifier");
@@ -445,7 +515,7 @@ function escapeGlob(text: string): string {
 function literalText(nodes: RegexNode[]): string | null {
   let text = "";
   for (const node of nodes) {
-    if (node.kind !== "text" || /^\[|^\?$/.test(node.glob)) return null;
+    if (node.kind !== "text" || node.glob.startsWith("[")) return null;
     text += node.glob.replace(/^\\/, "");
   }
   return text;

@@ -1,0 +1,14 @@
+{
+  "plugins": ["@ianvs/prettier-plugin-sort-imports"],
+  "importOrderTypeScriptVersion": "5.4.0",
+  "overrides": [
+    {
+      "files": "*.ts",
+      "options": { "importOrder": ["<BUILTIN_MODULES>", "^[.]", "<THIRD_PARTY_MODULES>"] }
+    },
+    { "files": "lib/**", "options": { "importOrderCaseSensitive": false } },
+    { "files": "old/**", "options": { "importOrderTypeScriptVersion": "4.0.0" } },
+    { "files": "old/new/**", "options": { "importOrder": ["^[.]"] } },
+    { "files": "off/**", "options": { "importOrder": [] } }
+  ]
+}

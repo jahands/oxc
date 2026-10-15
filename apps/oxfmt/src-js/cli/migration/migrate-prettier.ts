@@ -5,7 +5,12 @@ import { readdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { hasOxfmtrcFile, createBlankOxfmtrcFile, saveOxfmtrcFile, exitWithError } from "./shared";
-import { IANVS_OPTIONS, IANVS_PLUGIN, migrateIanvsSortImports } from "./prettier-sort-imports";
+import {
+  IANVS_OPTIONS,
+  IANVS_PLUGIN,
+  migrateIanvsOverrides,
+  migrateIanvsSortImports,
+} from "./prettier-sort-imports";
 import type { Language } from "../../config.generated";
 
 /**
@@ -54,6 +59,7 @@ export async function runMigratePrettier() {
     }
   }
 
+  // JHPATCH: Pass the plugins, so that migrateOptions() skips @ianvs/prettier-plugin-sort-imports options
   Object.assign(oxfmtrc, migrateOptions(options, enabledPlugins, true));
 
   // `printWidth` has different default between Prettier and Oxfmt.
@@ -102,11 +108,18 @@ export async function runMigratePrettier() {
   oxfmtrc.markdown = { lazyCodeSpanContinuation: true };
 
   if (Array.isArray(overrides)) {
-    // JHPATCH: Override options of @ianvs/prettier-plugin-sort-imports are merged with these
-    const topLevelIanvsOptions = pickIanvsOptions(options);
+    // JHPATCH: Migrate @ianvs/prettier-plugin-sort-imports options in overrides to sortImports
+    const ianvsOverrides = enabledPlugins.has(IANVS_PLUGIN)
+      ? migrateIanvsOverrides(
+          pickIanvsOptions(options),
+          overrides.map(({ options = {} }) => pickIanvsOptions(options)),
+          warnings,
+        )
+      : [];
     const oxfmtOverrides = [];
     const associations = [];
-    for (const { files, excludeFiles, options = {} } of overrides) {
+    // JHPATCH: Iterate with the index, to look up `ianvsOverrides`
+    for (const [index, { files, excludeFiles, options = {} }] of overrides.entries()) {
       const globs = {
         files: [files].flat(),
         ...(excludeFiles !== undefined && { excludeFiles: [excludeFiles].flat() }),
@@ -119,18 +132,13 @@ export async function runMigratePrettier() {
       } else if (parser !== undefined) {
         warnings.push(`overrides: "parser": "${parser}" is not supported, skipping...`);
       }
+      // JHPATCH: Pass the plugins to migrateOptions(), add the migrated sortImports
       const migrated: Record<string, unknown> = {
         ...migrateOptions(rest, enabledPlugins, false),
         ...migratePluginOptions(rest, enabledPlugins, false),
       };
-      // JHPATCH: Migrate @ianvs/prettier-plugin-sort-imports options in overrides to sortImports
-      const overrideIanvsOptions = pickIanvsOptions(rest);
-      if (enabledPlugins.has(IANVS_PLUGIN) && Object.keys(overrideIanvsOptions).length > 0) {
-        migrated.sortImports = migrateIanvsSortImports(
-          { ...topLevelIanvsOptions, ...overrideIanvsOptions },
-          warnings,
-          "overrides: ",
-        );
+      if (ianvsOverrides[index] !== undefined) {
+        migrated.sortImports = ianvsOverrides[index];
       }
       if (Object.keys(migrated).length === 0) continue;
       oxfmtOverrides.push({ ...globs, options: migrated });
@@ -308,6 +316,7 @@ const COMPATIBLE_OPTIONS = new Set([
 // Migrate top-level or `overrides[].options` Prettier options, except plugin-specific ones.
 function migrateOptions(
   options: Record<string, unknown>,
+  // JHPATCH: The enabled plugins, whose options are migrated elsewhere
   enabledPlugins: Set<string>,
   isTopLevel: boolean,
 ): Record<string, unknown> {

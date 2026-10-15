@@ -25,5 +25,6 @@
   { "cwd": "ianvs_default", "args": ["--migrate", "prettier"] },
   { "cwd": "trivago_plugin", "args": ["--migrate", "prettier"] },
   { "cwd": "toml_plugin", "args": ["--migrate", "prettier"] },
-  { "cwd": "prettier_38", "args": ["--migrate", "prettier"] }
+  { "cwd": "prettier_38", "args": ["--migrate", "prettier"] },
+  { "cwd": "ianvs_overrides", "args": ["--migrate", "prettier"] }
 ]
