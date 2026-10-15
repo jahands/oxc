@@ -36,6 +36,11 @@ pub fn apply_markdown_options(options: &mut MarkdownFormatOptions, json: &Option
                     options.single_quote = b.into();
                 }
             }
+            "lazyCodeSpanContinuation" => {
+                if let Some(b) = value.as_bool() {
+                    options.lazy_code_span_continuation = b;
+                }
+            }
             _ => {}
         }
     }

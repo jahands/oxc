@@ -6,7 +6,7 @@ use super::super::oxfmtrc::{FormatConfig, ProseWrapConfig};
 /// Convert `FormatConfig` into `MarkdownFormatOptions` for `oxc_formatter_markdown`.
 ///
 /// Prettier's `markdown` language consumes the shared layout options plus
-/// `proseWrap` and `singleQuote`.
+/// `proseWrap` and `singleQuote`; Markdown-specific options come from `config.markdown`.
 ///
 /// NOTE: Pure field translation:
 /// `core` comes pre-validated from the config-resolution gate (`validate()`), so this cannot fail.
@@ -28,6 +28,10 @@ pub fn to_oxc_formatter_markdown(
     // [Prettier] singleQuote: boolean
     if let Some(single_quote) = config.single_quote {
         options.single_quote = SingleQuote::from(single_quote);
+    }
+
+    if let Some(lazy) = config.markdown.as_ref().and_then(|md| md.lazy_code_span_continuation) {
+        options.lazy_code_span_continuation = lazy;
     }
 
     options

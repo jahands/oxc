@@ -201,6 +201,12 @@ export interface Oxfmtrc {
    */
   jsxSingleQuote?: boolean;
   /**
+   * Options for Markdown files and Markdown embedded in other languages.
+   *
+   * - Languages: Markdown
+   */
+  markdown?: MarkdownConfig;
+  /**
    * How to wrap object literals when they could fit on one line or span multiple lines.
    *
    * By default, formats objects as multi-line if there is a newline prior to the first property.
@@ -326,6 +332,16 @@ export interface Oxfmtrc {
    * - Overrides `.editorconfig.indent_size` (falls back to `.editorconfig.tab_width`)
    */
   tabWidth?: number;
+  /**
+   * Options for TOML files and TOML embedded in other languages (front matter, Markdown code blocks).
+   *
+   * Option names follow [prettier-plugin-toml](https://github.com/un-ts/prettier/tree/master/packages/toml),
+   * but unset options keep Taplo's defaults, which differ from the plugin's for
+   * `alignComments`, `alignSingleComments` and `allowedBlankLines`.
+   *
+   * - Languages: TOML
+   */
+  toml?: TomlConfig;
   /**
    * Print trailing commas wherever possible in multi-line comma-separated syntactic structures.
    *
@@ -470,6 +486,20 @@ export interface JsdocConfig {
   separateTagGroups?: boolean;
   [k: string]: unknown;
 }
+export interface MarkdownConfig {
+  /**
+   * Print the continuation lines of a multi-line code span from column 0,
+   * without the indentation or `>` markers of the enclosing list items and blockquotes
+   * (lazy continuation lines), as Prettier does.
+   *
+   * Applies only when no continuation line starts with whitespace, so the code span reads the same.
+   * Otherwise, and when disabled, continuation lines resume at the container's content column.
+   *
+   * - Default: `false`
+   */
+  lazyCodeSpanContinuation?: boolean;
+  [k: string]: unknown;
+}
 export interface OxfmtOverrideConfig {
   /**
    * Glob patterns to exclude from this override.
@@ -593,6 +623,12 @@ export interface FormatConfig {
    */
   jsxSingleQuote?: boolean;
   /**
+   * Options for Markdown files and Markdown embedded in other languages.
+   *
+   * - Languages: Markdown
+   */
+  markdown?: MarkdownConfig;
+  /**
    * How to wrap object literals when they could fit on one line or span multiple lines.
    *
    * By default, formats objects as multi-line if there is a newline prior to the first property.
@@ -711,6 +747,16 @@ export interface FormatConfig {
    * - Overrides `.editorconfig.indent_size` (falls back to `.editorconfig.tab_width`)
    */
   tabWidth?: number;
+  /**
+   * Options for TOML files and TOML embedded in other languages (front matter, Markdown code blocks).
+   *
+   * Option names follow [prettier-plugin-toml](https://github.com/un-ts/prettier/tree/master/packages/toml),
+   * but unset options keep Taplo's defaults, which differ from the plugin's for
+   * `alignComments`, `alignSingleComments` and `allowedBlankLines`.
+   *
+   * - Languages: TOML
+   */
+  toml?: TomlConfig;
   /**
    * Print trailing commas wherever possible in multi-line comma-separated syntactic structures.
    *
@@ -983,5 +1029,82 @@ export interface SvelteConfig {
    * - Default: `"options-scripts-markup-styles"`
    */
   sortOrder?: string;
+  [k: string]: unknown;
+}
+export interface TomlConfig {
+  /**
+   * Align consecutive comments after entries and array items vertically.
+   *
+   * - Default: `false` (`prettier-plugin-toml`: `true`)
+   */
+  alignComments?: boolean;
+  /**
+   * Align consecutive entries vertically.
+   *
+   * - Default: `false`
+   */
+  alignEntries?: boolean;
+  /**
+   * When `alignComments` is enabled, also align a comment that has no neighbor.
+   *
+   * `prettier-plugin-toml` has no such option and always aligns it.
+   *
+   * - Default: `false`
+   */
+  alignSingleComments?: boolean;
+  /**
+   * The maximum number of consecutive blank lines.
+   *
+   * - Default: `2` (`prettier-plugin-toml`: `1`)
+   */
+  allowedBlankLines?: number;
+  /**
+   * Collapse arrays that fit in `printWidth` and contain no comments.
+   *
+   * - Default: `true`
+   */
+  arrayAutoCollapse?: boolean;
+  /**
+   * Expand arrays that exceed `printWidth` to multiple lines.
+   *
+   * - Default: `true`
+   */
+  arrayAutoExpand?: boolean;
+  /**
+   * Omit whitespace padding inside single-line arrays.
+   *
+   * - Default: `true`
+   */
+  compactArrays?: boolean;
+  /**
+   * Omit whitespace around `=`.
+   *
+   * - Default: `false`
+   */
+  compactEntries?: boolean;
+  /**
+   * Omit whitespace padding inside inline tables.
+   *
+   * - Default: `false`
+   */
+  compactInlineTables?: boolean;
+  /**
+   * Indent entries under tables.
+   *
+   * - Default: `false`
+   */
+  indentEntries?: boolean;
+  /**
+   * Indent subtables and arrays of tables under their parent table, if they come in order.
+   *
+   * - Default: `false`
+   */
+  indentTables?: boolean;
+  /**
+   * Alphabetically reorder keys that are not separated by blank lines.
+   *
+   * - Default: `false`
+   */
+  reorderKeys?: boolean;
   [k: string]: unknown;
 }

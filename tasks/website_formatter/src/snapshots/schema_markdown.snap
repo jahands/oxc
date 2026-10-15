@@ -376,6 +376,31 @@ Use single quotes instead of double quotes in JSX.
 - Default: `false`
 
 
+## markdown
+
+type: `object`
+
+
+Options for Markdown files and Markdown embedded in other languages.
+
+- Languages: Markdown
+
+
+### markdown.lazyCodeSpanContinuation
+
+type: `boolean`
+
+
+Print the continuation lines of a multi-line code span from column 0,
+without the indentation or `>` markers of the enclosing list items and blockquotes
+(lazy continuation lines), as Prettier does.
+
+Applies only when no continuation line starts with whitespace, so the code span reads the same.
+Otherwise, and when disabled, continuation lines resume at the container's content column.
+
+- Default: `false`
+
+
 ## objectWrap
 
 type: `"preserve" | "collapse"`
@@ -954,6 +979,142 @@ Specify the number of spaces per indentation-level.
 - Languages: All
 - Default: `2`
 - Overrides `.editorconfig.indent_size` (falls back to `.editorconfig.tab_width`)
+
+
+## toml
+
+type: `object`
+
+
+Options for TOML files and TOML embedded in other languages (front matter, Markdown code blocks).
+
+Option names follow [prettier-plugin-toml](https://github.com/un-ts/prettier/tree/master/packages/toml),
+but unset options keep Taplo's defaults, which differ from the plugin's for
+`alignComments`, `alignSingleComments` and `allowedBlankLines`.
+
+- Languages: TOML
+
+
+### toml.alignComments
+
+type: `boolean`
+
+
+Align consecutive comments after entries and array items vertically.
+
+- Default: `false` (`prettier-plugin-toml`: `true`)
+
+
+### toml.alignEntries
+
+type: `boolean`
+
+
+Align consecutive entries vertically.
+
+- Default: `false`
+
+
+### toml.alignSingleComments
+
+type: `boolean`
+
+
+When `alignComments` is enabled, also align a comment that has no neighbor.
+
+`prettier-plugin-toml` has no such option and always aligns it.
+
+- Default: `false`
+
+
+### toml.allowedBlankLines
+
+type: `integer`
+
+
+The maximum number of consecutive blank lines.
+
+- Default: `2` (`prettier-plugin-toml`: `1`)
+
+
+### toml.arrayAutoCollapse
+
+type: `boolean`
+
+
+Collapse arrays that fit in `printWidth` and contain no comments.
+
+- Default: `true`
+
+
+### toml.arrayAutoExpand
+
+type: `boolean`
+
+
+Expand arrays that exceed `printWidth` to multiple lines.
+
+- Default: `true`
+
+
+### toml.compactArrays
+
+type: `boolean`
+
+
+Omit whitespace padding inside single-line arrays.
+
+- Default: `true`
+
+
+### toml.compactEntries
+
+type: `boolean`
+
+
+Omit whitespace around `=`.
+
+- Default: `false`
+
+
+### toml.compactInlineTables
+
+type: `boolean`
+
+
+Omit whitespace padding inside inline tables.
+
+- Default: `false`
+
+
+### toml.indentEntries
+
+type: `boolean`
+
+
+Indent entries under tables.
+
+- Default: `false`
+
+
+### toml.indentTables
+
+type: `boolean`
+
+
+Indent subtables and arrays of tables under their parent table, if they come in order.
+
+- Default: `false`
+
+
+### toml.reorderKeys
+
+type: `boolean`
+
+
+Alphabetically reorder keys that are not separated by blank lines.
+
+- Default: `false`
 
 
 ## trailingComma
