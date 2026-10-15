@@ -202,6 +202,13 @@ pub(super) fn to_sort_imports(config: &FormatConfig) -> Result<Option<SortImport
     if let Some(v) = sort_imports_config.hoist {
         sort_imports.hoist = v;
     }
+    // JHPATCH: Map sortImports.mergeDuplicates and sortImports.splitTypeSpecifiers
+    if let Some(v) = sort_imports_config.merge_duplicates {
+        sort_imports.merge_duplicates = v;
+    }
+    if let Some(v) = sort_imports_config.split_type_specifiers {
+        sort_imports.split_type_specifiers = v;
+    }
     if let Some(v) = sort_imports_config.newlines_between {
         sort_imports.newlines_between = v;
     }
@@ -520,6 +527,8 @@ mod tests {
         assert_eq!(sort_imports.collation, SortCollation::Natural);
         assert!(!sort_imports.sort_specifiers);
         assert!(!sort_imports.hoist);
+        assert!(!sort_imports.merge_duplicates);
+        assert!(!sort_imports.split_type_specifiers);
 
         let config: FormatConfig = serde_json::from_str(
             r#"{
@@ -527,7 +536,9 @@ mod tests {
                     "partitionBySideEffect": true,
                     "collation": "intl",
                     "sortSpecifiers": true,
-                    "hoist": true
+                    "hoist": true,
+                    "mergeDuplicates": true,
+                    "splitTypeSpecifiers": true
                 }
             }"#,
         )
@@ -538,6 +549,8 @@ mod tests {
         assert_eq!(sort_imports.collation, SortCollation::Intl);
         assert!(sort_imports.sort_specifiers);
         assert!(sort_imports.hoist);
+        assert!(sort_imports.merge_duplicates);
+        assert!(sort_imports.split_type_specifiers);
 
         let config: FormatConfig = serde_json::from_str(
             r#"{

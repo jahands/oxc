@@ -927,6 +927,29 @@ export interface SortImportsConfig {
    */
   internalPattern?: string[];
   /**
+   * Merge imports of the same source into one declaration,
+   * the way `@ianvs/prettier-plugin-sort-imports` does.
+   *
+   * Imports are merged within the imports that are sorted together
+   * (every top-level import with `hoist`, otherwise each run of imports, split by the `partitionBy*` options).
+   * The first import of a source takes in the later ones, with their specifiers after its own
+   * and the comments above them below its own comments.
+   * Value imports merge with value imports and type imports with type imports.
+   * Without `splitTypeSpecifiers`, type imports also merge with value imports as inline `type` specifiers.
+   *
+   * These are not merged: an import with a namespace specifier, two imports with a default specifier,
+   * a type import with a default specifier, side effect imports, suppressed imports,
+   * imports with different import attributes, and imports with comments outside `{ ... }`.
+   * An import that cannot merge still keeps later imports of its source from merging into an earlier one.
+   *
+   * ```js
+   * import React, { useState } from 'react'
+   * ```
+   *
+   * - Default: `false`
+   */
+  mergeDuplicates?: boolean;
+  /**
    * Add newlines between groups.
    *
    * - Default: `true`
@@ -1014,6 +1037,26 @@ export interface SortImportsConfig {
    * - Default: `false`
    */
   sortSpecifiers?: boolean;
+  /**
+   * Split the inline `type` specifiers of a value import into a type import,
+   * the way `@ianvs/prettier-plugin-sort-imports` does.
+   *
+   * Applies to a value import with more than one specifier, some but not all of them inline `type` specifiers.
+   * `import { type A } from 'a'` and `import { type A, type B } from 'a'` are left as written,
+   * as are imports with import attributes.
+   * Splitting runs after `mergeDuplicates`, so the new type import is not merged with other type imports
+   * of its source until the file is formatted again.
+   *
+   * With `hoist`, the comments of a split import move below the imports, as they do with Prettier.
+   *
+   * ```js
+   * import { b } from 'a'
+   * import type { A } from 'a'
+   * ```
+   *
+   * - Default: `false`
+   */
+  splitTypeSpecifiers?: boolean;
   [k: string]: unknown;
 }
 export interface CustomGroupItemConfig {
