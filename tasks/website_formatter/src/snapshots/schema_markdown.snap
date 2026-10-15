@@ -376,6 +376,31 @@ Use single quotes instead of double quotes in JSX.
 - Default: `false`
 
 
+## markdown
+
+type: `object`
+
+
+Options for Markdown files and Markdown embedded in other languages.
+
+- Languages: Markdown
+
+
+### markdown.lazyCodeSpanContinuation
+
+type: `boolean`
+
+
+Print the continuation lines of a multi-line code span from column 0,
+without the indentation or `>` markers of the enclosing list items and blockquotes
+(lazy continuation lines), as Prettier does.
+
+Applies only when no continuation line starts with whitespace, so the code span reads the same.
+Otherwise, and when disabled, continuation lines resume at the container's content column.
+
+- Default: `false`
+
+
 ## objectWrap
 
 type: `"preserve" | "collapse"`

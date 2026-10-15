@@ -16,6 +16,10 @@ pub struct MarkdownFormatOptions {
     pub prose_wrap: ProseWrap,
     /// Preferred quote for re-quotable titles. Mirrors Prettier's `singleQuote`.
     pub single_quote: SingleQuote,
+    /// Continuation lines of a multi-line code span start at column 0, without the containers'
+    /// indention or `>` markers (lazy continuation lines, as Prettier prints them),
+    /// when none of them starts with whitespace.
+    pub lazy_code_span_continuation: bool,
 }
 
 /// How paragraph text is re-flowed.

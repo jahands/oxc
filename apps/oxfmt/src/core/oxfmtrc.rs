@@ -330,6 +330,12 @@ pub struct FormatConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub astro: Option<AstroUserConfig>,
 
+    /// Options for Markdown files and Markdown embedded in other languages.
+    ///
+    /// - Languages: Markdown
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub markdown: Option<MarkdownConfig>,
+
     /// Options for TOML files and TOML embedded in other languages (front matter, Markdown code blocks).
     ///
     /// Option names follow [prettier-plugin-toml](https://github.com/un-ts/prettier/tree/master/packages/toml),
@@ -1046,6 +1052,23 @@ pub enum AstroCompressHtmlConfig {
     Html,
     /// No collapsing.
     None,
+}
+
+// ---
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MarkdownConfig {
+    /// Print the continuation lines of a multi-line code span from column 0,
+    /// without the indentation or `>` markers of the enclosing list items and blockquotes
+    /// (lazy continuation lines), as Prettier does.
+    ///
+    /// Applies only when no continuation line starts with whitespace, so the code span reads the same.
+    /// Otherwise, and when disabled, continuation lines resume at the container's content column.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lazy_code_span_continuation: Option<bool>,
 }
 
 // ---

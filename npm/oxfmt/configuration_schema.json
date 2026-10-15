@@ -103,6 +103,15 @@
       "type": "boolean",
       "markdownDescription": "Use single quotes instead of double quotes in JSX.\n\n- Languages: JSX, TSX\n- Default: `false`"
     },
+    "markdown": {
+      "description": "Options for Markdown files and Markdown embedded in other languages.\n\n- Languages: Markdown",
+      "allOf": [
+        {
+          "$ref": "#/definitions/MarkdownConfig"
+        }
+      ],
+      "markdownDescription": "Options for Markdown files and Markdown embedded in other languages.\n\n- Languages: Markdown"
+    },
     "objectWrap": {
       "description": "How to wrap object literals when they could fit on one line or span multiple lines.\n\nBy default, formats objects as multi-line if there is a newline prior to the first property.\nAuthors can use this heuristic to contextually improve readability, though it has some downsides.\n\n- Languages: JS, JSX, TS, TSX, JSON, JSONC, JSON5\n- Default: `\"preserve\"`",
       "allOf": [
@@ -450,6 +459,15 @@
           "type": "boolean",
           "markdownDescription": "Use single quotes instead of double quotes in JSX.\n\n- Languages: JSX, TSX\n- Default: `false`"
         },
+        "markdown": {
+          "description": "Options for Markdown files and Markdown embedded in other languages.\n\n- Languages: Markdown",
+          "allOf": [
+            {
+              "$ref": "#/definitions/MarkdownConfig"
+            }
+          ],
+          "markdownDescription": "Options for Markdown files and Markdown embedded in other languages.\n\n- Languages: Markdown"
+        },
         "objectWrap": {
           "description": "How to wrap object literals when they could fit on one line or span multiple lines.\n\nBy default, formats objects as multi-line if there is a newline prior to the first property.\nAuthors can use this heuristic to contextually improve readability, though it has some downsides.\n\n- Languages: JS, JSX, TS, TSX, JSON, JSONC, JSON5\n- Default: `\"preserve\"`",
           "allOf": [
@@ -730,6 +748,16 @@
         "greedy",
         "balance"
       ]
+    },
+    "MarkdownConfig": {
+      "type": "object",
+      "properties": {
+        "lazyCodeSpanContinuation": {
+          "description": "Print the continuation lines of a multi-line code span from column 0,\nwithout the indentation or `>` markers of the enclosing list items and blockquotes\n(lazy continuation lines), as Prettier does.\n\nApplies only when no continuation line starts with whitespace, so the code span reads the same.\nOtherwise, and when disabled, continuation lines resume at the container's content column.\n\n- Default: `false`",
+          "type": "boolean",
+          "markdownDescription": "Print the continuation lines of a multi-line code span from column 0,\nwithout the indentation or `>` markers of the enclosing list items and blockquotes\n(lazy continuation lines), as Prettier does.\n\nApplies only when no continuation line starts with whitespace, so the code span reads the same.\nOtherwise, and when disabled, continuation lines resume at the container's content column.\n\n- Default: `false`"
+        }
+      }
     },
     "NewlinesBetweenMarker": {
       "description": "A marker object for overriding `newlinesBetween` at a specific group boundary.",

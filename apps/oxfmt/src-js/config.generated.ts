@@ -200,6 +200,12 @@ export interface Oxfmtrc {
    */
   jsxSingleQuote?: boolean;
   /**
+   * Options for Markdown files and Markdown embedded in other languages.
+   *
+   * - Languages: Markdown
+   */
+  markdown?: MarkdownConfig;
+  /**
    * How to wrap object literals when they could fit on one line or span multiple lines.
    *
    * By default, formats objects as multi-line if there is a newline prior to the first property.
@@ -478,6 +484,20 @@ export interface JsdocConfig {
   separateTagGroups?: boolean;
   [k: string]: unknown;
 }
+export interface MarkdownConfig {
+  /**
+   * Print the continuation lines of a multi-line code span from column 0,
+   * without the indentation or `>` markers of the enclosing list items and blockquotes
+   * (lazy continuation lines), as Prettier does.
+   *
+   * Applies only when no continuation line starts with whitespace, so the code span reads the same.
+   * Otherwise, and when disabled, continuation lines resume at the container's content column.
+   *
+   * - Default: `false`
+   */
+  lazyCodeSpanContinuation?: boolean;
+  [k: string]: unknown;
+}
 export interface OxfmtOverrideConfig {
   /**
    * Glob patterns to exclude from this override.
@@ -600,6 +620,12 @@ export interface FormatConfig {
    * - Default: `false`
    */
   jsxSingleQuote?: boolean;
+  /**
+   * Options for Markdown files and Markdown embedded in other languages.
+   *
+   * - Languages: Markdown
+   */
+  markdown?: MarkdownConfig;
   /**
    * How to wrap object literals when they could fit on one line or span multiple lines.
    *
