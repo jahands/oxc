@@ -80,6 +80,7 @@ impl<'a> SourceLine<'a> {
                             moving_comments: 0,
                             is_split: false,
                             is_detached: false,
+                            joins_comment_when_first: false,
                             is_side_effect: false,
                             is_type_import: false,
                             has_default_specifier: false,
@@ -167,6 +168,7 @@ impl<'a> SourceLine<'a> {
                 moving_comments: 0,
                 is_split: false,
                 is_detached: false,
+                joins_comment_when_first: false,
                 is_side_effect,
                 is_type_import,
                 has_default_specifier,
@@ -226,6 +228,8 @@ pub struct ImportLineMetadata<'a> {
     pub is_split: bool,
     /// Whether the previous statement in the source is not the import before it.
     pub is_detached: bool,
+    /// See [`super::ImportRewriteInfo::joins_comment_when_first`].
+    pub joins_comment_when_first: bool,
     /// Whether this is a side-effect-only import (e.g., `import "foo"`).
     pub is_side_effect: bool,
     /// Whether this is a type-only import (e.g., `import type { Foo } from "foo"`).

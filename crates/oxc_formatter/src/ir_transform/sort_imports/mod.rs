@@ -71,6 +71,7 @@ pub fn sort_imports_chunk(
                 .map_or(0, |(_, count)| *count),
             is_split: info.split_import_starts.contains(start),
             is_detached: info.detached_import_starts.contains(start),
+            joins_comment_when_first: info.joins_comment_when_first.contains(start),
         })
         .collect();
 
@@ -284,6 +285,7 @@ fn transform<'a>(
         metadata.moving_comments = rewritten.moving_comments;
         metadata.is_split = rewritten.is_split;
         metadata.is_detached = rewritten.is_detached;
+        metadata.joins_comment_when_first = rewritten.joins_comment_when_first;
     }
 
     // Next, partition `SourceLine`s into `PartitionedChunk`s.
@@ -508,6 +510,15 @@ fn transform<'a>(
                         seen_non_ignored = true;
                     }
 
+                    // JHPATCH: Whether the import goes on the line of the comment above it (sortImports.mergeDuplicates)
+                    let joins_comment = sorted_import.joins_comment_when_first
+                        && slot_idx == 0
+                        && position == ChunkPosition::FileStart
+                        && next_elements.is_empty()
+                        && matches!(
+                            sorted_import.leading_lines.last(),
+                            Some(SourceLine::CommentOnly(..))
+                        );
                     // Output leading lines and import line
                     for line in &sorted_import.leading_lines {
                         line.write(
@@ -516,6 +527,11 @@ fn transform<'a>(
                             // JHPATCH: Keep blank lines in leading comments (sortImports.hoist)
                             options.partition_by_newline || options.hoist,
                         );
+                    }
+                    // JHPATCH: Print the import on the line of the comment above it (sortImports.mergeDuplicates)
+                    if joins_comment {
+                        next_elements.pop();
+                        next_elements.push(FormatElement::Space);
                     }
                     sorted_import.import_line.write(prev_elements, &mut next_elements, false);
 
@@ -583,6 +599,8 @@ struct RewrittenImport {
     is_split: bool,
     /// Whether the previous statement in the source is not the import before it.
     is_detached: bool,
+    /// See [`ImportRewriteInfo::joins_comment_when_first`].
+    joins_comment_when_first: bool,
 }
 
 /// Resolve whether a blank line should be inserted between two group indices.

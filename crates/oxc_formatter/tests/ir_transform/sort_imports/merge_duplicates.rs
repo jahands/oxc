@@ -397,3 +397,54 @@ import { a, b /* About c. */, c } from "x";
 "#,
     );
 }
+
+#[test]
+fn should_print_the_first_import_on_the_line_of_a_moved_block_comment() {
+    assert_format(
+        r#"
+import { a } from "x";
+/**
+ * About b.
+ */
+import { b } from "x";
+"#,
+        MERGE_SPLIT_HOIST,
+        r#"
+/**
+ * About b.
+ */ import { a, b } from "x";
+"#,
+    );
+    assert_format(
+        r#"
+import { z } from "z";
+import { a } from "x";
+/* About
+ * b. */
+import { b } from "x";
+"#,
+        MERGE_SPLIT_HOIST,
+        r#"
+/* About
+ * b. */ import { a, b } from "x";
+import { z } from "z";
+"#,
+    );
+    // An import printed below another one stays below the comment.
+    assert_format(
+        r#"
+import { a } from "a";
+import { b } from "x";
+/* About
+ * c. */
+import { c } from "x";
+"#,
+        MERGE_SPLIT_HOIST,
+        r#"
+import { a } from "a";
+/* About
+ * c. */
+import { b, c } from "x";
+"#,
+    );
+}

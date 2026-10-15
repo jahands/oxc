@@ -157,6 +157,7 @@ impl<'a> PartitionedChunk<'a> {
                     // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
                     let moving_comments = metadata.moving_comments;
                     let is_split = metadata.is_split;
+                    let joins_comment_when_first = metadata.joins_comment_when_first;
                     let (group_idx, normalized_source, is_ignored) =
                         compute_import_metadata(metadata, group_matcher, options);
 
@@ -170,6 +171,7 @@ impl<'a> PartitionedChunk<'a> {
                         // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
                         moving_comments,
                         is_split,
+                        joins_comment_when_first,
                         is_side_effect,
                         group_idx,
                         normalized_source,

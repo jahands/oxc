@@ -24,6 +24,8 @@ pub struct SortableImport<'a> {
     pub moving_comments: usize,
     /// Whether this import was split from a value import with inline `type` specifiers.
     pub is_split: bool,
+    /// See [`super::ImportRewriteInfo::joins_comment_when_first`].
+    pub joins_comment_when_first: bool,
     // These are used for sorting and computed by `compute_import_metadata()`
     pub group_idx: usize,
     pub normalized_source: Cow<'a, str>,

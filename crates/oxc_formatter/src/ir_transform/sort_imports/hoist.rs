@@ -192,24 +192,29 @@ pub fn hoist_imports<'a>(
             _ => vec![],
         }
     };
-    // The text of an import, the offset of its declaration in it,
-    // and the number of comments from merged imports on lines of their own above it.
-    let import_text = |import: &HoistedImport| -> (Cow<'_, str>, usize, usize) {
+    let import_text = |import: &HoistedImport| -> ImportText<'_> {
         let Some(Rewrite::Replace { text: new_text, split, .. }) =
             rewrites.and_then(|rewrites| rewrites.get(import.idx))
         else {
             let range = import.range.clone();
-            return (
-                Cow::Borrowed(text(range.clone())),
-                (import.decl_range.start - range.start) as usize,
-                0,
-            );
+            return ImportText {
+                text: Cow::Borrowed(text(range.clone())),
+                decl_offset: (import.decl_range.start - range.start) as usize,
+                moved_lines: 0,
+                joins_comment_when_first: false,
+            };
         };
         if split.is_some() {
-            return (Cow::Borrowed(new_text), 0, 0);
+            return ImportText {
+                text: Cow::Borrowed(new_text),
+                decl_offset: 0,
+                moved_lines: 0,
+                joins_comment_when_first: false,
+            };
         }
         let moved = moved_for(import);
         let mut moved_lines = moved.len();
+        let mut joins_comment_when_first = false;
         let mut out = String::new();
         if moved.is_empty() {
             out.push_str(text(import.range.start..import.decl_range.start));
@@ -237,11 +242,12 @@ pub fn hoist_imports<'a>(
                 && last.is_some_and(|last| !last.is_line());
             out.push(if same_line { ' ' } else { '\n' });
             moved_lines -= usize::from(same_line);
+            joins_comment_when_first = !same_line && last.is_some_and(|last| !last.is_line());
         }
         let decl_offset = out.len();
         out.push_str(new_text);
         out.push_str(text(import.decl_range.end..import.range.end));
-        (Cow::Owned(out), decl_offset, moved_lines)
+        ImportText { text: Cow::Owned(out), decl_offset, moved_lines, joins_comment_when_first }
     };
 
     let mut out = String::with_capacity(source.len() + 2);
@@ -345,8 +351,12 @@ pub fn hoist_imports<'a>(
         out.push_str(separator);
         let prev_idx_before = prev_import.map(|(prev_idx, _)| prev_idx);
         prev_import = Some((idx, range.end));
-        let (import_text, decl_offset, moved_lines) = import_text(import);
+        let ImportText { text: import_text, decl_offset, moved_lines, joins_comment_when_first } =
+            import_text(import);
         let decl_start = (out.len() + decl_offset) as u32;
+        if joins_comment_when_first {
+            info.joins_comment_when_first.push(decl_start);
+        }
         if prev_idx_before.is_some_and(|prev_idx| prev_idx + 1 != idx) {
             info.detached_import_starts.push(decl_start);
         }
@@ -413,6 +423,20 @@ pub struct ImportRewriteInfo {
     pub split_import_starts: Vec<u32>,
     /// Start offsets of the imports whose previous statement in the source is not the import before them.
     pub detached_import_starts: Vec<u32>,
+    /// Start offsets of the imports with a block comment from a merged import directly above them,
+    /// which go on the line of that comment when nothing is printed before them.
+    pub joins_comment_when_first: Vec<u32>,
+}
+
+/// An import as written into the block at the top by [`hoist_imports`].
+struct ImportText<'s> {
+    text: Cow<'s, str>,
+    /// Offset of the declaration in `text`.
+    decl_offset: usize,
+    /// Number of comments from merged imports on lines of their own above the declaration.
+    moved_lines: usize,
+    /// See [`ImportRewriteInfo::joins_comment_when_first`].
+    joins_comment_when_first: bool,
 }
 
 /// A top-level import written into the block at the top.

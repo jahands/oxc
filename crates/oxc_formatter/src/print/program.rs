@@ -175,7 +175,15 @@ fn format_import_decls_with_sort<'a, 'iter>(
     }
 
     // A single-import run is already in order, so skip the transform.
-    if count >= 2 {
+    // JHPATCH: Run the transform for an import that goes on the line of the comment above it (sortImports.mergeDuplicates)
+    if count >= 2
+        || join
+            .fmt()
+            .context()
+            .import_rewrite_info()
+            .joins_comment_when_first
+            .contains(&import_starts[0])
+    {
         // JHPATCH: Chunk position for the hoist comment rules, import offsets to look up rewritten imports (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
         sort_imports_chunk(join.fmt_mut(), chunk_start, position, &import_starts);
     }
