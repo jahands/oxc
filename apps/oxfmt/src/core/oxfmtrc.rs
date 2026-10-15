@@ -329,6 +329,16 @@ pub struct FormatConfig {
     /// - Default: Disabled
     #[serde(skip_serializing_if = "Option::is_none")]
     pub astro: Option<AstroUserConfig>,
+
+    /// Options for TOML files and TOML embedded in other languages (front matter, Markdown code blocks).
+    ///
+    /// Option names follow [prettier-plugin-toml](https://github.com/un-ts/prettier/tree/master/packages/toml),
+    /// but unset options keep Taplo's defaults, which differ from the plugin's for
+    /// `alignComments`, `alignSingleComments` and `allowedBlankLines`.
+    ///
+    /// - Languages: TOML
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub toml: Option<TomlConfig>,
 }
 
 impl FormatConfig {
@@ -1036,6 +1046,75 @@ pub enum AstroCompressHtmlConfig {
     Html,
     /// No collapsing.
     None,
+}
+
+// ---
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TomlConfig {
+    /// Align consecutive entries vertically.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub align_entries: Option<bool>,
+    /// Align consecutive comments after entries and array items vertically.
+    ///
+    /// - Default: `false` (`prettier-plugin-toml`: `true`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub align_comments: Option<bool>,
+    /// When `alignComments` is enabled, also align a comment that has no neighbor.
+    ///
+    /// `prettier-plugin-toml` has no such option and always aligns it.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub align_single_comments: Option<bool>,
+    /// The maximum number of consecutive blank lines.
+    ///
+    /// - Default: `2` (`prettier-plugin-toml`: `1`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_blank_lines: Option<u32>,
+    /// Expand arrays that exceed `printWidth` to multiple lines.
+    ///
+    /// - Default: `true`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub array_auto_expand: Option<bool>,
+    /// Collapse arrays that fit in `printWidth` and contain no comments.
+    ///
+    /// - Default: `true`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub array_auto_collapse: Option<bool>,
+    /// Omit whitespace padding inside single-line arrays.
+    ///
+    /// - Default: `true`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compact_arrays: Option<bool>,
+    /// Omit whitespace padding inside inline tables.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compact_inline_tables: Option<bool>,
+    /// Omit whitespace around `=`.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compact_entries: Option<bool>,
+    /// Indent subtables and arrays of tables under their parent table, if they come in order.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indent_tables: Option<bool>,
+    /// Indent entries under tables.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indent_entries: Option<bool>,
+    /// Alphabetically reorder keys that are not separated by blank lines.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reorder_keys: Option<bool>,
 }
 
 // ---

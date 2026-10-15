@@ -939,6 +939,142 @@ Specify the number of spaces per indentation-level.
 - Overrides `.editorconfig.indent_size` (falls back to `.editorconfig.tab_width`)
 
 
+## toml
+
+type: `object`
+
+
+Options for TOML files and TOML embedded in other languages (front matter, Markdown code blocks).
+
+Option names follow [prettier-plugin-toml](https://github.com/un-ts/prettier/tree/master/packages/toml),
+but unset options keep Taplo's defaults, which differ from the plugin's for
+`alignComments`, `alignSingleComments` and `allowedBlankLines`.
+
+- Languages: TOML
+
+
+### toml.alignComments
+
+type: `boolean`
+
+
+Align consecutive comments after entries and array items vertically.
+
+- Default: `false` (`prettier-plugin-toml`: `true`)
+
+
+### toml.alignEntries
+
+type: `boolean`
+
+
+Align consecutive entries vertically.
+
+- Default: `false`
+
+
+### toml.alignSingleComments
+
+type: `boolean`
+
+
+When `alignComments` is enabled, also align a comment that has no neighbor.
+
+`prettier-plugin-toml` has no such option and always aligns it.
+
+- Default: `false`
+
+
+### toml.allowedBlankLines
+
+type: `integer`
+
+
+The maximum number of consecutive blank lines.
+
+- Default: `2` (`prettier-plugin-toml`: `1`)
+
+
+### toml.arrayAutoCollapse
+
+type: `boolean`
+
+
+Collapse arrays that fit in `printWidth` and contain no comments.
+
+- Default: `true`
+
+
+### toml.arrayAutoExpand
+
+type: `boolean`
+
+
+Expand arrays that exceed `printWidth` to multiple lines.
+
+- Default: `true`
+
+
+### toml.compactArrays
+
+type: `boolean`
+
+
+Omit whitespace padding inside single-line arrays.
+
+- Default: `true`
+
+
+### toml.compactEntries
+
+type: `boolean`
+
+
+Omit whitespace around `=`.
+
+- Default: `false`
+
+
+### toml.compactInlineTables
+
+type: `boolean`
+
+
+Omit whitespace padding inside inline tables.
+
+- Default: `false`
+
+
+### toml.indentEntries
+
+type: `boolean`
+
+
+Indent entries under tables.
+
+- Default: `false`
+
+
+### toml.indentTables
+
+type: `boolean`
+
+
+Indent subtables and arrays of tables under their parent table, if they come in order.
+
+- Default: `false`
+
+
+### toml.reorderKeys
+
+type: `boolean`
+
+
+Alphabetically reorder keys that are not separated by blank lines.
+
+- Default: `false`
+
+
 ## trailingComma
 
 type: `"all" | "es5" | "none"`

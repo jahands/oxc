@@ -28,6 +28,46 @@ describe("TOML files (oxc_formatter_toml)", () => {
     expect(result.code).toBe("a = 1\r\nb = 2\r\n");
   });
 
+  it("should keep Taplo defaults without toml options", async () => {
+    const source = `a = 1 # c\nbbbbb = 2\n\n\nc = [1, 2]\n`;
+    const result = await format("a.toml", source);
+    expect(result.errors).toStrictEqual([]);
+    expect(result.code).toBe(source);
+  });
+
+  it("should map toml options", async () => {
+    const source = `a = 1 # c\nbbbbb = 2\n\n\nc = [1, 2]\n`;
+    const result = await format("a.toml", source, {
+      toml: {
+        alignComments: true,
+        alignSingleComments: true,
+        allowedBlankLines: 1,
+        compactArrays: false,
+      },
+    });
+    expect(result.errors).toStrictEqual([]);
+    expect(result.code).toMatchInlineSnapshot(`
+      "a = 1     # c
+      bbbbb = 2
+
+      c = [ 1, 2 ]
+      "
+    `);
+  });
+
+  it("should apply toml options to Markdown code blocks", async () => {
+    const source = "```toml\na = 1\nbbbbb = 2\n```\n";
+    const result = await format("a.md", source, { toml: { alignEntries: true } });
+    expect(result.errors).toStrictEqual([]);
+    expect(result.code).toMatchInlineSnapshot(`
+      "\`\`\`toml
+      a     = 1
+      bbbbb = 2
+      \`\`\`
+      "
+    `);
+  });
+
   it("should accept TOML 1.1 syntax", async () => {
     const source = `esc="\\e[0m"\ntime=07:32\ninline={ a=1,\n  b=2, }\n`;
     const result = await format("a.toml", source);
