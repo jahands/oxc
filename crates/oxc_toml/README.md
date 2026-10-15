@@ -1,0 +1,79 @@
+# oxc-toml
+
+This is forked from [Taplo](https://github.com/tamasfe/taplo) for Oxfmt.
+
+A TOML formatter library.
+
+This library provides TOML formatting capabilities while preserving comments, whitespace, and the original document structure where appropriate.
+
+## Features
+
+- Format TOML documents according to configurable style options
+- Preserve comments and meaningful whitespace
+- Handle syntax errors gracefully
+- Fault-tolerant parsing using [Rowan](https://github.com/rust-analyzer/rowan) syntax trees
+
+## Usage
+
+```rust
+use oxc_toml::{format, parse, Options};
+
+const SOURCE: &str = "value=1\n[table]\nstring='some string'";
+
+let parsed = parse(SOURCE);
+assert!(parsed.errors.is_empty());
+
+let formatted = format(&parsed, Options::default());
+```
+
+### Examples
+
+Format all TOML files in a directory:
+
+```bash
+cargo run --example format_directory [PATH]
+```
+
+This example uses the `ignore` crate to walk a directory tree and format all TOML files, respecting .gitignore and other ignore files.
+
+## Attribution
+
+This project is a formatter-only fork of the excellent [Taplo](https://github.com/tamasfe/taplo) project, originally created by [Ferenc Tamás](https://github.com/tamasfe).
+
+### What Changed
+
+This fork strips away all non-formatter components from Taplo, including:
+
+- CLI tool
+- Language Server Protocol (LSP) implementation
+- WebAssembly bindings
+- DOM (Document Object Model) for TOML manipulation
+- JavaScript/TypeScript packages
+- Editor integrations
+
+The result is a focused, lightweight library that does one thing well: format TOML documents.
+
+### Original Taplo Project
+
+Taplo is a comprehensive TOML toolkit that provides:
+
+- TOML v1.0.0 parser
+- Formatter (the foundation of this fork)
+- Language server for IDE integration
+- CLI tool for formatting and validation
+- WebAssembly bindings for browser/Node.js
+- Schema validation
+
+If you need these features, please use the original [Taplo project](https://github.com/tamasfe/taplo).
+
+### License
+
+This project maintains the original MIT License from Taplo. See [LICENSE](LICENSE) for details.
+
+# [Sponsored By](https://oxc.rs/sponsor)
+
+<p align="center">
+  <a href="https://oxc.rs/sponsor">
+    <img src="https://raw.githubusercontent.com/oxc-project/sponsors/main/sponsors.svg" alt="Our sponsors" />
+  </a>
+</p>

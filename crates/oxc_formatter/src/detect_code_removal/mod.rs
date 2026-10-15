@@ -159,6 +159,37 @@ impl StatsCollector {
             return;
         }
 
+        // JHPATCH: Count imports by source, not by declaration (sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+        // Merging and splitting imports changes the number of declarations,
+        // but not the number of specifiers imported from each source with each set of attributes.
+        // e.g. `import { a } from "x"; import { b } from "x";` -> `import { a, b } from "x";`
+        if let AstKind::ImportDeclaration(decl) = kind {
+            let attributes: Vec<String> = decl
+                .with_clause
+                .iter()
+                .flat_map(|with_clause| &with_clause.with_entries)
+                .map(|entry| format!("{:?}={:?}", entry.key.as_js_str(), entry.value.value))
+                .collect();
+            let count = decl.specifiers.as_ref().map_or(1, |specifiers| specifiers.len().max(1));
+            let key = format!("IMPORT_FROM({:?},{})", decl.source.value, attributes.join(","));
+            *self.node_counts.entry(key).or_insert(0) += count;
+            return;
+        }
+        let parent_kind = semantic.nodes().parent_kind(node.id());
+        let is_import_source = matches!(kind, AstKind::StringLiteral(_))
+            && matches!(parent_kind, AstKind::ImportDeclaration(_));
+        let is_in_attributes = matches!(kind, AstKind::WithClause(_) | AstKind::ImportAttribute(_))
+            || matches!(parent_kind, AstKind::ImportAttribute(_));
+        if is_import_source
+            || (is_in_attributes
+                && semantic
+                    .nodes()
+                    .ancestor_kinds(node.id())
+                    .any(|ancestor| matches!(ancestor, AstKind::ImportDeclaration(_))))
+        {
+            return;
+        }
+
         // `TSUnionType` can have unnecessary leading `|`.
         // If there is such leading `|` with only one type, they can be removed.
         // e.g. `type T = | A` -> `type T = A` = TSUnionType: 1 -> 0
@@ -199,7 +230,6 @@ impl StatsCollector {
         // Count by `debug_name` which contains the node type and its details.
         // If this is too strict, we can relax it later.
         let node_name = kind.debug_name().to_string();
-        let parent_kind = semantic.nodes().parent_kind(node.id());
 
         // Object-like keys can be formatted differently based on quote options.
         // e.g. `{ "key": value }` -> `{ key: value }`
@@ -321,6 +351,9 @@ mod tests {
             ("const a = 1;", "const b = 1;"),
             ("const a = 1; // variable a", "const a = 1;"),
             ("/* block comment */ const b = 2;", "const b = 2;"),
+            (r#"import { a } from "x"; import { b } from "x";"#, r#"import { a } from "x";"#),
+            (r#"import { a } from "x"; import { b } from "x";"#, r#"import { a, b } from "y";"#),
+            (r#"import { a } from "x" with { type: "json" };"#, r#"import { a } from "x";"#),
         ] {
             let source_type = SourceType::default().with_typescript(true).with_jsx(true);
 
@@ -373,6 +406,19 @@ mod tests {
             (r#"<div className="flex flex p-4" />"#, r#"<div className="flex p-4" />"#),
             // Single class should still be tracked normally
             (r#"const a = "flex";"#, r#"const a = "flex";"#),
+            // Merged and split imports
+            (
+                r#"import A from "x"; import { b } from 'x'; import type { C } from "x";"#,
+                r#"import A, { b, type C } from "x";"#,
+            ),
+            (
+                r#"import { type A, b } from "x";"#,
+                r#"import { b } from "x"; import type { A } from "x";"#,
+            ),
+            (
+                r#"import { a } from "x" with { type: "json" }; import { b } from "x" with { type: "json" };"#,
+                r#"import { a, b } from "x" with { type: 'json' };"#,
+            ),
         ] {
             let source_type = SourceType::default().with_typescript(true).with_jsx(true);
 

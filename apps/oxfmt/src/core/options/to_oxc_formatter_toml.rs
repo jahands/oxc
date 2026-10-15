@@ -44,6 +44,7 @@ pub fn to_oxc_formatter_toml(
         (&mut options.indent_tables, toml.indent_tables),
         (&mut options.indent_entries, toml.indent_entries),
         (&mut options.reorder_keys, toml.reorder_keys),
+        (&mut options.trim_leading_blank_lines, toml.trim_leading_blank_lines),
     ] {
         if let Some(value) = value {
             *field = value;
@@ -87,7 +88,8 @@ mod tests {
                     "compactEntries": true,
                     "indentTables": true,
                     "indentEntries": true,
-                    "reorderKeys": true
+                    "reorderKeys": true,
+                    "trimLeadingBlankLines": true
                 }
             }"#,
         );
@@ -106,6 +108,7 @@ mod tests {
                 indent_tables: true,
                 indent_entries: true,
                 reorder_keys: true,
+                trim_leading_blank_lines: true,
                 ..TomlFormatOptions::default()
             }
         );

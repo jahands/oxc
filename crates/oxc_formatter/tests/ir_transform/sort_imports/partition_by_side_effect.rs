@@ -226,3 +226,114 @@ import "./setup";
 "#,
     );
 }
+
+#[test]
+fn should_print_empty_named_imports_as_side_effect_imports() {
+    assert_format(
+        r#"
+import { z } from "z";
+import {} from "./setup";
+import { b } from "b";
+import { a } from "a";
+import {} from "./data.json" with { type: "json" };
+import type {} from "./types";
+"#,
+        r#"{ "sortImports": { "partitionBySideEffect": true, "newlinesBetween": false } }"#,
+        r#"
+import { z } from "z";
+import "./setup";
+import { a } from "a";
+import { b } from "b";
+import "./data.json" with { type: "json" };
+import type {} from "./types";
+"#,
+    );
+    // With hoist, an empty named import gets the blank lines of a side effect import.
+    assert_format(
+        r#"
+import { z } from "z";
+import {} from "./setup";
+const x = 1;
+import { a } from "a";
+"#,
+        r#"{ "sortImports": { "partitionBySideEffect": true, "hoist": true, "mergeDuplicates": true } }"#,
+        r#"
+import { z } from "z";
+
+import "./setup";
+
+import { a } from "a";
+
+const x = 1;
+"#,
+    );
+}
+
+#[test]
+fn should_skip_blank_line_before_side_effect_with_comment_on_its_line() {
+    let config = r#"{
+        "sortImports": {
+            "partitionBySideEffect": true,
+            "newlinesBetween": false,
+            "groups": ["value-external", { "newlinesBetween": true }, "type-import"]
+        }
+    }"#;
+    assert_format(
+        r#"
+import type { T } from "t";
+/* About `side`. */ import "./side";
+"#,
+        config,
+        r#"
+import type { T } from "t";
+/* About `side`. */ import "./side";
+"#,
+    );
+}
+
+#[test]
+fn should_read_trailing_comments_of_the_source_before_hoist() {
+    let config = r#"{
+        "sortImports": {
+            "hoist": true,
+            "partitionBySideEffect": true,
+            "newlinesBetween": false,
+            "groups": ["value-external", { "newlinesBetween": true }, "type-import"]
+        }
+    }"#;
+    // The trailing comment only counts when the import came right before the side effect import.
+    assert_format(
+        r#"
+import type { T } from "t"; // trailing comment
+f();
+import "./side";
+"#,
+        config,
+        r#"
+import type { T } from "t"; // trailing comment
+
+import "./side";
+
+f();
+"#,
+    );
+    // A suppressed import with a trailing comment is followed by a blank line
+    // when the next import did not start on the line after it.
+    assert_format(
+        r#"
+import "./setup";
+// prettier-ignore
+import { d, e } from "react"; // trailing comment
+
+import "./side";
+"#,
+        config,
+        r#"
+import "./setup";
+// prettier-ignore
+import { d, e } from "react"; // trailing comment
+
+import "./side";
+"#,
+    );
+}

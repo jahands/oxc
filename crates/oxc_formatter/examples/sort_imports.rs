@@ -35,6 +35,11 @@ fn main() -> Result<(), String> {
         collation: SortCollation::Natural,
         sort_specifiers: false,
         hoist: false,
+        // JHPATCH: New sortImports options (mergeDuplicates, splitTypeSpecifiers)
+        merge_duplicates: false,
+        split_type_specifiers: false,
+        // JHPATCH: New sortImports option (combineTypeAndValueImports)
+        combine_type_and_value_imports: true,
         newlines_between,
         internal_pattern: default_internal_patterns(),
         groups: default_groups(),

@@ -1,6 +1,7 @@
 use oxc_formatter_core::format_element::LineMode;
 
 use crate::ir_transform::sort_imports::{
+    ImportLines,
     compute_metadata::compute_import_metadata,
     group_matcher::GroupMatcher,
     options::SortImportsOptions,
@@ -72,6 +73,8 @@ impl<'a> PartitionedChunk<'a> {
         options: &SortImportsOptions,
         // JHPATCH: Keep the comments before the first import at the top (sortImports.hoist)
         keep_leading_comments_at_top: bool,
+        // JHPATCH: Source lines of the imports for the hoist blank line rules (sortImports.hoist)
+        import_lines: &[ImportLines],
     ) -> (Vec<SortableImport<'a>>, Vec<OrphanContent<'a>>, Vec<SourceLine<'a>>, Vec<bool>) {
         let Self::Imports(lines) = self else {
             unreachable!(
@@ -100,7 +103,22 @@ impl<'a> PartitionedChunk<'a> {
                         .push(orphan_pending.iter().any(|l| matches!(l, SourceLine::Empty)));
                     // JHPATCH: Keep the comments before the first import at the top (sortImports.hoist)
                     if keep_leading_comments_at_top && sortable_imports.is_empty() {
+                        // JHPATCH: Comments that move with the first import (sortImports.mergeDuplicates)
+                        // The comments that hoist_imports moved above the first import move with it.
+                        let mut seen = 0;
+                        let split_at = (metadata.moving_comments > 0)
+                            .then(|| {
+                                current_pending.iter().rposition(|line| {
+                                    let is_comment = matches!(line, SourceLine::CommentOnly(..));
+                                    seen += usize::from(is_comment);
+                                    is_comment && seen == metadata.moving_comments
+                                })
+                            })
+                            .flatten()
+                            .unwrap_or(current_pending.len());
+                        let mut moved = current_pending.split_off(split_at);
                         orphan_pending.append(&mut current_pending);
+                        current_pending.append(&mut moved);
                     }
 
                     // Handle orphan content (separated by empty line from this import)
@@ -133,21 +151,47 @@ impl<'a> PartitionedChunk<'a> {
                         }
                     }
 
+                    // JHPATCH: Source lines of the imports for the hoist blank line rules (sortImports.hoist)
+                    // Without source lines, the line index in the chunk stands in.
+                    #[expect(clippy::cast_possible_truncation)]
+                    let lines =
+                        import_lines.get(sortable_imports.len()).copied().unwrap_or(ImportLines {
+                            line: line_idx as u32,
+                            comment_height: 0,
+                            follows_import: true,
+                            has_trailing_comment: metadata.has_trailing_comment,
+                            trailing_comment_height: 0,
+                            keeps_position: false,
+                        });
                     let is_side_effect = metadata.is_side_effect;
                     // JHPATCH: Trailing comment info for hoist and side effect blank lines
-                    let has_trailing_comment = metadata.has_trailing_comment;
-                    let follows_trailing_comment =
-                        sortable_imports.last().is_some_and(|prev| prev.has_trailing_comment);
+                    let has_leading_comment = metadata.has_leading_comment;
+                    let has_trailing_comment = lines.has_trailing_comment;
+                    let follows_trailing_comment = lines.follows_import
+                        && sortable_imports.last().is_some_and(|prev| prev.has_trailing_comment);
+                    // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+                    let moving_comments = metadata.moving_comments;
+                    let is_split = metadata.is_split;
+                    let joins_comment_when_first = metadata.joins_comment_when_first;
                     let (group_idx, normalized_source, is_ignored) =
                         compute_import_metadata(metadata, group_matcher, options);
+                    // JHPATCH: Imports that keep their position before hoist (sortImports.hoist)
+                    let is_ignored = is_ignored || lines.keeps_position;
 
                     sortable_imports.push(SortableImport {
                         leading_lines: std::mem::take(&mut current_pending),
                         import_line: line,
                         // JHPATCH: Line and trailing comment info for hoist and side effect blank lines
-                        line_idx,
+                        line: lines.line,
+                        comment_height: lines.comment_height,
+                        has_leading_comment,
                         has_trailing_comment,
+                        trailing_comment_height: lines.trailing_comment_height,
                         follows_trailing_comment,
+                        // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+                        moving_comments,
+                        is_split,
+                        joins_comment_when_first,
                         is_side_effect,
                         group_idx,
                         normalized_source,

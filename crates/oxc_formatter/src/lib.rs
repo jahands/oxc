@@ -44,6 +44,7 @@ pub(crate) use oxc_formatter_core::{best_fitting, format_args, write};
 pub(crate) use oxc_formatter_core::Format;
 
 use self::formatter::prelude::tag::Label;
+use crate::ir_transform::ImportRewriteInfo;
 use crate::print::{FormatFunctionParams, FormatTypeParameters};
 
 /// Usage context a JS/TS fragment is placed in js-in-xxx.
@@ -130,11 +131,15 @@ pub fn format_to_ir<'a>(
 ) -> Result<EmbeddedIr<'a>, OxcDiagnostic> {
     let allocator = session.allocator();
     let program = parse(allocator, allocator.alloc_str(source_text), source_type)?;
-    // JHPATCH: Move imports to the top before formatting (sortImports.hoist)
-    let program = hoist_imports(allocator, program, &options);
+    // JHPATCH: Move imports to the top, merge and split them before formatting (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+    let (program, rewrite_info, hoist_facts) = rewrite_imports(allocator, program, &options);
     let node = AstNode::new(program, AstNodes::Dummy(), allocator);
     let mut context =
         JsFormatContext::new(program.source_text, program.source_type, &program.comments, options);
+    // JHPATCH: Imports merged and split before formatting (sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+    context.set_import_rewrite_info(rewrite_info);
+    // JHPATCH: Pass the hoist result to the context (sortImports.hoist)
+    context.set_hoist_facts(hoist_facts);
     // JHPATCH: Semicolon rule moved to embedding_omits_semicolon, shared with format_embedded_with_session (sortImports in MDX)
     context.set_embedding_omits_semicolon(embedding_omits_semicolon(program, embedded_in));
 
@@ -168,11 +173,14 @@ pub fn format_embedded_with_session<'a>(
         return Err(OxcDiagnostic::error("Only import/export declarations are allowed in MDX ESM"));
     }
 
-    let program = hoist_imports(session.allocator(), program, &options);
+    let (program, rewrite_info, hoist_facts) =
+        rewrite_imports(session.allocator(), program, &options);
     let node = AstNode::new(program, AstNodes::Dummy(), session.allocator());
     let mut context =
         JsFormatContext::new(program.source_text, program.source_type, &program.comments, options);
+    context.set_hoist_facts(hoist_facts);
     context.set_embedding_omits_semicolon(embedding_omits_semicolon(program, embedded_in));
+    context.set_import_rewrite_info(rewrite_info);
 
     Ok(formatter::format(
         context,
@@ -310,16 +318,18 @@ fn format_program_with_session<'a>(
     program: &'a Program<'a>,
     options: JsFormatOptions,
 ) -> Formatted<'a, JsFormatContext<'a>> {
-    // JHPATCH: Move imports to the top before formatting (sortImports.hoist)
-    let program = hoist_imports(session.allocator(), program, &options);
+    // JHPATCH: Move imports to the top, merge and split them before formatting, and pass the results to the context (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+    let (program, rewrite_info, hoist_facts) =
+        rewrite_imports(session.allocator(), program, &options);
     let node = AstNode::new(program, AstNodes::Dummy(), session.allocator());
-    format_node(
+    let mut context =
+        JsFormatContext::new(program.source_text, program.source_type, &program.comments, options);
+    context.set_import_rewrite_info(rewrite_info);
+    context.set_hoist_facts(hoist_facts);
+    formatter::format(
+        context,
         session,
-        options,
-        &node,
-        program.source_text,
-        program.source_type,
-        &program.comments,
+        oxc_formatter_core::Arguments::new(&[oxc_formatter_core::Argument::new(&node)]),
     )
 }
 
@@ -370,23 +380,54 @@ fn parse<'a>(
     Ok(allocator.alloc(ret.program))
 }
 
-// JHPATCH: Re-parse with imports moved to the top (sortImports.hoist)
-/// With `sortImports.hoist`, re-parse `program` from its source with the imports moved to the top
-/// ([`ir_transform::hoist_imports`]), when that changes the source.
-fn hoist_imports<'a>(
+// JHPATCH: Re-parse with imports moved to the top, merged and split (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers, sortImports.partitionBySideEffect)
+/// Re-parse `program` from its source with the imports moved to the top (`sortImports.hoist`,
+/// [`ir_transform::hoist_imports`]), and merged and split (`sortImports.mergeDuplicates`,
+/// `sortImports.splitTypeSpecifiers`, [`ir_transform::plan_import_rewrites`]), when that changes the source.
+/// With `sortImports.partitionBySideEffect`, `import {} from 'a'` becomes `import 'a'`.
+///
+/// Also returns what import sorting needs to know about the rewritten imports,
+/// and with `sortImports.hoist`, what the source looked like before.
+fn rewrite_imports<'a>(
     allocator: &'a Allocator,
     program: &'a Program<'a>,
     options: &JsFormatOptions,
-) -> &'a Program<'a> {
-    let Some(sort_imports) =
-        options.sort_imports.as_ref().filter(|sort_imports| sort_imports.hoist)
-    else {
-        return program;
+) -> (&'a Program<'a>, ImportRewriteInfo, Option<ir_transform::HoistFacts>) {
+    let Some(sort_imports) = options.sort_imports.as_ref() else {
+        return (program, ImportRewriteInfo::default(), None);
     };
-    let Some(source_text) = ir_transform::hoist_imports(program, sort_imports, allocator) else {
-        return program;
+    let rewrites = if sort_imports.merge_duplicates
+        || sort_imports.split_type_specifiers
+        || sort_imports.partition_by_side_effect
+    {
+        ir_transform::plan_import_rewrites(program, sort_imports)
+    } else {
+        None
     };
-    parse(allocator, source_text, program.source_type).unwrap_or(program)
+    let (source_text, info, facts) = if sort_imports.hoist {
+        let Some(hoisted) =
+            ir_transform::hoist_imports(program, sort_imports, rewrites.as_ref(), allocator)
+        else {
+            return (program, ImportRewriteInfo::default(), None);
+        };
+        let Some(source_text) = hoisted.source_text else {
+            return (program, hoisted.info, Some(hoisted.facts));
+        };
+        (source_text, hoisted.info, Some(hoisted.facts))
+    } else {
+        match rewrites {
+            Some(rewrites) => (
+                ir_transform::apply_import_rewrites(program, &rewrites, allocator),
+                ImportRewriteInfo::default(),
+                None,
+            ),
+            None => return (program, ImportRewriteInfo::default(), None),
+        }
+    };
+    match parse(allocator, source_text, program.source_type) {
+        Ok(program) => (program, info, facts),
+        Err(_) => (program, ImportRewriteInfo::default(), None),
+    }
 }
 
 /// Run the IR formatter over a single `Format` value and return its `Formatted` IR.

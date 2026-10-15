@@ -297,6 +297,7 @@ ignored = [
 [patch.crates-io]
 oxc_allocator = { path = "crates/oxc_allocator" }
 sort-package-json = { path = "crates/sort_package_json" }
+oxc-toml = { path = "crates/oxc_toml" }
 
 [profile.dev]
 # Disabling debug info speeds up local and CI builds,

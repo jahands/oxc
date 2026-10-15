@@ -1,0 +1,10 @@
+{
+  "printWidth": 100,
+  "plugins": ["prettier-plugin-toml"],
+  "alignEntries": false,
+  "allowedBlankLines": 2,
+  "indentTables": true,
+  "overrides": [
+    { "files": ["mise.toml"], "options": { "alignEntries": true, "alignComments": false } }
+  ]
+}

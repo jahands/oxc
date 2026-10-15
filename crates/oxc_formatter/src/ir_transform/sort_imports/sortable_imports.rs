@@ -12,12 +12,26 @@ pub struct SortableImport<'a> {
     pub leading_lines: Vec<SourceLine<'a>>,
     pub import_line: SourceLine<'a>,
     // JHPATCH: Line and trailing comment info for hoist and side effect blank lines
-    /// Index of `import_line` among the lines of its chunk, before sorting.
-    pub line_idx: usize,
+    /// Source line of the import.
+    pub line: u32,
+    /// Lines from the start of the comments that the import owns to the import.
+    pub comment_height: u32,
+    /// Whether a comment precedes the import on its line.
+    pub has_leading_comment: bool,
     /// Whether a comment follows the import on its line.
     pub has_trailing_comment: bool,
-    /// Whether the import before this one in the source has a trailing comment.
+    /// Lines from the import to the end of its trailing comments.
+    pub trailing_comment_height: u32,
+    /// Whether the statement before this one in the source is an import with a trailing comment.
     pub follows_trailing_comment: bool,
+    // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+    /// Number of comments on lines of their own directly above the import that move with it
+    /// when it is the first import ([`super::ImportRewriteInfo::moving_comments`]).
+    pub moving_comments: usize,
+    /// Whether this import was split from a value import with inline `type` specifiers.
+    pub is_split: bool,
+    /// See [`super::ImportRewriteInfo::joins_comment_when_first`].
+    pub joins_comment_when_first: bool,
     // These are used for sorting and computed by `compute_import_metadata()`
     pub group_idx: usize,
     pub normalized_source: Cow<'a, str>,
