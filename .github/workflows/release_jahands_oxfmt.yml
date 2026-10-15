@@ -15,16 +15,13 @@ on:
         required: true
         type: boolean
         default: true
-  push:
-    branches:
-      - jh/npm-publish
 
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
 env:
-  VERSION: ${{ inputs.version || '0.73.0-jh.0' }}
+  VERSION: ${{ inputs.version }}
 
 jobs:
   check:
