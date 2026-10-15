@@ -226,3 +226,45 @@ import "./setup";
 "#,
     );
 }
+
+#[test]
+fn should_print_empty_named_imports_as_side_effect_imports() {
+    assert_format(
+        r#"
+import { z } from "z";
+import {} from "./setup";
+import { b } from "b";
+import { a } from "a";
+import {} from "./data.json" with { type: "json" };
+import type {} from "./types";
+"#,
+        r#"{ "sortImports": { "partitionBySideEffect": true, "newlinesBetween": false } }"#,
+        r#"
+import { z } from "z";
+import "./setup";
+import { a } from "a";
+import { b } from "b";
+import "./data.json" with { type: "json" };
+import type {} from "./types";
+"#,
+    );
+    // With hoist, an empty named import gets the blank lines of a side effect import.
+    assert_format(
+        r#"
+import { z } from "z";
+import {} from "./setup";
+const x = 1;
+import { a } from "a";
+"#,
+        r#"{ "sortImports": { "partitionBySideEffect": true, "hoist": true, "mergeDuplicates": true } }"#,
+        r#"
+import { z } from "z";
+
+import "./setup";
+
+import { a } from "a";
+
+const x = 1;
+"#,
+    );
+}

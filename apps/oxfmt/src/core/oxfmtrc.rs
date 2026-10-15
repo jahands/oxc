@@ -604,6 +604,8 @@ pub struct SortImportsConfig {
     /// When `true`, imports are not sorted across a side effect import that keeps its position
     /// (see `sortSideEffects`), or across an import suppressed with `prettier-ignore` / `oxfmt-ignore`.
     /// Suppressed imports get the same blank lines as side effect imports.
+    /// An import with an empty `{}` and no comments (`import {} from 'a'`) is printed as the side effect import `import 'a'`,
+    /// as `@ianvs/prettier-plugin-sort-imports` does.
     ///
     /// If any group boundary inserts newlines (`newlinesBetween: true` or a `{ "newlinesBetween": true }` marker),
     /// a run of side effect imports also gets a blank line after it, and one before it.

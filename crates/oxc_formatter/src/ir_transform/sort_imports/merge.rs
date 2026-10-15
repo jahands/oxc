@@ -78,6 +78,9 @@ impl ImportRewrites {
 ///
 /// Imports with comments outside their `{ ... }` or inside a specifier are left as written.
 ///
+/// With `partition_by_side_effect`, a value import with an empty `{}` and no comments
+/// is printed as a side effect import (`import {} from 'a'` as `import 'a'`) and keeps its position like one.
+///
 /// Returns `None` when no import changes.
 pub fn plan_import_rewrites(
     program: &Program<'_>,
@@ -94,6 +97,7 @@ pub fn plan_import_rewrites(
         .or(program.hashbang.as_ref().map(|hashbang| hashbang.span.end))
         .unwrap_or(0);
 
+    let mut rewrites = FxHashMap::default();
     let mut runs: Vec<Vec<Candidate>> = vec![vec![]];
     let mut prev_import: Option<(usize, &ImportDeclaration)> = None;
     for (idx, stmt) in body.iter().enumerate() {
@@ -116,7 +120,24 @@ pub fn plan_import_rewrites(
             .iter()
             .chain(same_line_comments_after(source, comments, decl.span.end))
             .any(|comment| is_suppression_marker(comment.content_span().source_text(source)));
-        let keeps_position = decl.specifiers.is_none()
+        let is_empty_named = options.partition_by_side_effect
+            && !is_suppressed
+            && is_empty_named_import(decl, comments);
+        if is_empty_named {
+            rewrites.insert(
+                idx,
+                Rewrite::Replace {
+                    text: format!(
+                        "import {}{};",
+                        &source[decl.source.span.start as usize..decl.source.span.end as usize],
+                        attributes_text(decl, source)
+                    ),
+                    absorbed: vec![],
+                    split: None,
+                },
+            );
+        }
+        let keeps_position = (decl.specifiers.is_none() || is_empty_named)
             && !options.sort_side_effects
             && !group_matcher.should_regroup_side_effect()
             && (!decl.source.value.as_str().is_some_and(is_style)
@@ -130,7 +151,6 @@ pub fn plan_import_rewrites(
         }
     }
 
-    let mut rewrites = FxHashMap::default();
     for mut run in runs {
         if options.merge_duplicates {
             merge_run(
@@ -354,11 +374,7 @@ impl<'a> Candidate<'a> {
             comments_in(comments, decl.span.start, decl.span.end),
         );
 
-        let attributes = if decl.with_clause.is_some() {
-            text(decl.source.span.end..decl.span.end).trim_end().trim_end_matches(';').trim_end()
-        } else {
-            ""
-        };
+        let attributes = attributes_text(decl, source);
 
         Some(Self {
             idx,
@@ -415,6 +431,26 @@ impl<'a> Candidate<'a> {
         text.push_str(&type_text);
         (text, type_offset)
     }
+}
+
+/// The import attributes of `decl` as written with a leading space (` with { type: 'json' }`), or empty.
+fn attributes_text<'a>(decl: &ImportDeclaration<'a>, source: &'a str) -> &'a str {
+    if decl.with_clause.is_none() {
+        return "";
+    }
+    source[decl.source.span.end as usize..decl.span.end as usize]
+        .trim_end()
+        .trim_end_matches(';')
+        .trim_end()
+}
+
+/// Whether `decl` is a value import with an empty `{}` and no comments, like `import {} from 'a'`.
+/// `@ianvs/prettier-plugin-sort-imports` treats it as a side effect import and prints it as `import 'a'`.
+pub fn is_empty_named_import(decl: &ImportDeclaration<'_>, comments: &[Comment]) -> bool {
+    decl.specifiers.as_ref().is_some_and(|specifiers| specifiers.is_empty())
+        && !decl.import_kind.is_type()
+        && decl.phase.is_none()
+        && comments_in(comments, decl.span.start, decl.span.end).is_empty()
 }
 
 /// Attach the comments in an import (`decl_comments`) to its named specifiers the way Babel does.

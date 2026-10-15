@@ -14,6 +14,7 @@ pub struct SortImportsOptions {
     // JHPATCH: sortImports.partitionBySideEffect option
     /// Partition imports by side effect imports that keep their position,
     /// and by suppressed imports.
+    /// A value import with an empty `{}` and no comments is printed as a side effect import.
     /// Default is `false`.
     pub partition_by_side_effect: bool,
     /// Sort side effects imports.

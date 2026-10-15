@@ -375,10 +375,11 @@ fn parse<'a>(
     Ok(allocator.alloc(ret.program))
 }
 
-// JHPATCH: Re-parse with imports moved to the top, merged and split (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+// JHPATCH: Re-parse with imports moved to the top, merged and split (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers, sortImports.partitionBySideEffect)
 /// Re-parse `program` from its source with the imports moved to the top (`sortImports.hoist`,
 /// [`ir_transform::hoist_imports`]), and merged and split (`sortImports.mergeDuplicates`,
 /// `sortImports.splitTypeSpecifiers`, [`ir_transform::plan_import_rewrites`]), when that changes the source.
+/// With `sortImports.partitionBySideEffect`, `import {} from 'a'` becomes `import 'a'`.
 ///
 /// Also returns what import sorting needs to know about the rewritten imports.
 fn rewrite_imports<'a>(
@@ -389,7 +390,10 @@ fn rewrite_imports<'a>(
     let Some(sort_imports) = options.sort_imports.as_ref() else {
         return (program, ImportRewriteInfo::default());
     };
-    let rewrites = if sort_imports.merge_duplicates || sort_imports.split_type_specifiers {
+    let rewrites = if sort_imports.merge_duplicates
+        || sort_imports.split_type_specifiers
+        || sort_imports.partition_by_side_effect
+    {
         ir_transform::plan_import_rewrites(program, sort_imports)
     } else {
         None

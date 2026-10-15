@@ -13,7 +13,7 @@ use oxc_syntax::line_terminator::is_line_terminator;
 
 use super::{
     SortImportsOptions,
-    merge::{ImportRewrites, Rewrite},
+    merge::{ImportRewrites, Rewrite, is_empty_named_import},
 };
 
 /// Rewrite the source text of `program` so that every top-level import sits in one block
@@ -318,7 +318,8 @@ pub fn hoist_imports<'a>(
                 .or(hashbang_end)
                 .unwrap_or(bom_len as u32),
         };
-        decl.specifiers.is_none() && comments_in(comments, prev_end, decl.span.start).is_empty()
+        (decl.specifiers.is_none() || is_empty_named_import(decl, comments))
+            && comments_in(comments, prev_end, decl.span.start).is_empty()
     };
     let mut info = ImportRewriteInfo::default();
     let mut prev_import: Option<(usize, u32)> = None;
