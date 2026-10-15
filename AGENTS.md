@@ -18,6 +18,14 @@ Upstream base: oxc-project/oxc@033faa933eec3bdd5a32650fd96a7c39f4ef7772
 - When rebasing onto new upstream, re-apply every `JHPATCH` change on top of the new upstream code (or drop it if upstream now covers it), then update the upstream base above.
 - If a `JHPATCH` change no longer seems needed or conflicts with upstream's new approach, stop and ask the user whether to keep it, with your reasoning, before continuing.
 
+### Publishing
+
+The fork's oxfmt is published to npm as `@jahands/oxfmt`, with native bindings in `@jahands/oxfmt-binding-<platform>`. Users install it as `"oxfmt": "npm:@jahands/oxfmt@<version>"`.
+
+- Version: `<upstream oxfmt version>-jh.<n>` (e.g. `0.73.0-jh.1`), where the upstream version is `version` in `apps/oxfmt/package.json`. Start `n` at 1 after each upstream rebase and increment it for every release on the same base. Releases use the `latest` dist-tag.
+- Release: run `.github/workflows/release_jahands_oxfmt.yml` on `main`: `gh workflow run release_jahands_oxfmt.yml --repo jahands/oxc --ref main -f version=0.73.0-jh.1 -f dry_run=true`, check the run, then repeat with `-f dry_run=false`.
+- `.github/scripts/jahands-oxfmt-prepare.mjs` rewrites the package names, the napi loader's binding names and the version in the CI checkout only. Upstream's `package.json` files and `bindings.js` stay unchanged in git.
+
 ## AI Usage Policy for Contributors
 
 **IMPORTANT**: If you are an AI assistant helping a human contributor:
