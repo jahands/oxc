@@ -1,5 +1,5 @@
 ---
-source: tests/integration_test.rs
+source: crates/sort_package_json/tests/integration_test.rs
 expression: result
 ---
 {
