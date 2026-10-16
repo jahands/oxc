@@ -14,7 +14,8 @@ on:
 jobs:
   pr:
     name: Check PR Title
-    runs-on: ubuntu-slim
+    # JHPATCH: Runs on a Blacksmith runner, which the fork uses for all CI
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Validate PR title
         if: ${{ github.event_name == 'pull_request' }}

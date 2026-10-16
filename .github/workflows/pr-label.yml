@@ -25,7 +25,8 @@ jobs:
     permissions:
       contents: read # `actions/labeler` reads `.github/labeler.yml` via the GitHub API
       pull-requests: write # `actions/labeler` adds labels to the PR, requires write permission
-    runs-on: ubuntu-slim
+    # JHPATCH: Runs on a Blacksmith runner, which the fork uses for all CI
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       # `workflow_run.pull_requests` is empty for PRs from forks, so look the PRs up by head branch.
       # The same head branch can have open PRs against different base branches, so label all of them.

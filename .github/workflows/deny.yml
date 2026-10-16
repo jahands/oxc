@@ -25,7 +25,8 @@ concurrency:
 jobs:
   deny:
     name: Cargo Deny
-    runs-on: ubuntu-latest
+    # JHPATCH: Runs on a Blacksmith runner, which the fork uses for all CI
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
 

@@ -20,6 +20,7 @@ concurrency:
 jobs:
   security:
     name: Security Analysis
-    runs-on: ubuntu-latest
+    # JHPATCH: Runs on a Blacksmith runner, which the fork uses for all CI
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: oxc-project/security-action@a8d382d3e5d0fccc813776e461cb0c3fb9d51a0d # v1.0.10
