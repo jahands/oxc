@@ -25,7 +25,7 @@ env:
 
 jobs:
   check:
-    if: github.repository == 'jahands/oxc'
+    if: github.repository == 'uuid-rocks/oxc'
     name: Check version
     runs-on: ubuntu-slim
     steps:
