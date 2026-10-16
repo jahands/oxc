@@ -13,6 +13,8 @@ use crate::{
     },
     write,
 };
+// JHPATCH: Re-export for member chain links (sole multiline template fix)
+pub use arguments::FormatChainLinkArguments;
 use arguments::{is_simple_module_import, is_verbatim_multiline_template_sole_arg};
 
 use super::FormatWrite;

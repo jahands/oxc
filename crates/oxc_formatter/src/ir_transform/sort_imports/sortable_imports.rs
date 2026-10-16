@@ -2,13 +2,36 @@ use std::borrow::Cow;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::ir_transform::sort_imports::{options::SortImportsOptions, source_line::SourceLine};
+use crate::ir_transform::sort_imports::{
+    collation::compare_names, options::SortImportsOptions, source_line::SourceLine,
+};
 
 #[derive(Debug)]
 pub struct SortableImport<'a> {
     /// Comments directly before this import (no empty line between).
     pub leading_lines: Vec<SourceLine<'a>>,
     pub import_line: SourceLine<'a>,
+    // JHPATCH: Line and trailing comment info for hoist and side effect blank lines
+    /// Source line of the import.
+    pub line: u32,
+    /// Lines from the start of the comments that the import owns to the import.
+    pub comment_height: u32,
+    /// Whether a comment precedes the import on its line.
+    pub has_leading_comment: bool,
+    /// Whether a comment follows the import on its line.
+    pub has_trailing_comment: bool,
+    /// Lines from the import to the end of its trailing comments.
+    pub trailing_comment_height: u32,
+    /// Whether the statement before this one in the source is an import with a trailing comment.
+    pub follows_trailing_comment: bool,
+    // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+    /// Number of comments on lines of their own directly above the import that move with it
+    /// when it is the first import ([`super::ImportRewriteInfo::moving_comments`]).
+    pub moving_comments: usize,
+    /// Whether this import was split from a value import with inline `type` specifiers.
+    pub is_split: bool,
+    /// See [`super::ImportRewriteInfo::joins_comment_when_first`].
+    pub joins_comment_when_first: bool,
     // These are used for sorting and computed by `compute_import_metadata()`
     pub group_idx: usize,
     pub normalized_source: Cow<'a, str>,
@@ -40,21 +63,33 @@ impl SortSortableImports for Vec<SortableImport<'_>> {
             return;
         }
 
-        // Stage 2: Group non-ignored imports by `group_idx`
-        let mut imports_by_group: FxHashMap<usize, Vec<usize>> = FxHashMap::default();
-        for &idx in &sortable_indices {
-            imports_by_group.entry(self[idx].group_idx).or_default().push(idx);
-        }
-
-        // Stage 3: Sort within each group and build sorted list
-        // Need to process `groups` in order by `group_idx`
-        let mut groups: Vec<_> = imports_by_group.iter_mut().collect();
-        groups.sort_unstable_by_key(|(gidx, _)| *gidx);
+        // JHPATCH: Sort segments between side effect imports independently (sortImports.partitionBySideEffect)
+        // With `partition_by_side_effect`, ignored imports split the sortable ones into segments
+        // that are sorted independently.
+        // `sortable_indices` is ascending, so a gap between neighbors means an ignored import sits between them.
+        let segments: Vec<&[usize]> = if options.partition_by_side_effect {
+            sortable_indices.chunk_by(|a, b| a + 1 == *b).collect()
+        } else {
+            vec![&sortable_indices]
+        };
 
         let mut sorted_indices = Vec::with_capacity(sortable_indices.len());
-        for (_, group_indices) in groups {
-            sort_within_group(group_indices, self, options);
-            sorted_indices.extend_from_slice(group_indices);
+        for segment in segments {
+            // Stage 2: Group non-ignored imports by `group_idx`
+            let mut imports_by_group: FxHashMap<usize, Vec<usize>> = FxHashMap::default();
+            for &idx in segment {
+                imports_by_group.entry(self[idx].group_idx).or_default().push(idx);
+            }
+
+            // Stage 3: Sort within each group and build sorted list
+            // Need to process `groups` in order by `group_idx`
+            let mut groups: Vec<_> = imports_by_group.iter_mut().collect();
+            groups.sort_unstable_by_key(|(gidx, _)| *gidx);
+
+            for (_, group_indices) in groups {
+                sort_within_group(group_indices, self, options);
+                sorted_indices.extend_from_slice(group_indices);
+            }
         }
 
         // Stage 4: Build final permutation by inserting ignored imports at their original positions
@@ -159,7 +194,8 @@ fn sort_indices_by_source(
     // so the stable `sort_by` preserves the original order of equal imports.
     indices.sort_by(|&a, &b| {
         let ordering =
-            natord::compare(&imports[a].normalized_source, &imports[b].normalized_source);
+            // JHPATCH: Compare sources with the configured collation (sortImports.collation)
+            compare_names(&imports[a].normalized_source, &imports[b].normalized_source, options);
         if options.order.is_desc() { ordering.reverse() } else { ordering }
     });
 }

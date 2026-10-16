@@ -19,5 +19,12 @@
   { "cwd": "package_json_shared", "args": ["--migrate", "prettier"] },
   { "cwd": "yaml_prettierrc", "args": ["--migrate", "prettier"] },
   { "cwd": "parent_config/sub", "args": ["--migrate", "prettier"] },
-  { "cwd": "already_exists_ts", "args": ["--migrate", "prettier"] }
+  { "cwd": "already_exists_ts", "args": ["--migrate", "prettier"] },
+  { "cwd": "ianvs_workers", "args": ["--migrate", "prettier"] },
+  { "cwd": "ianvs_options", "args": ["--migrate", "prettier"] },
+  { "cwd": "ianvs_default", "args": ["--migrate", "prettier"] },
+  { "cwd": "trivago_plugin", "args": ["--migrate", "prettier"] },
+  { "cwd": "toml_plugin", "args": ["--migrate", "prettier"] },
+  { "cwd": "prettier_38", "args": ["--migrate", "prettier"] },
+  { "cwd": "ianvs_overrides", "args": ["--migrate", "prettier"] }
 ]

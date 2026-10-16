@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -268,10 +268,12 @@ pub struct FormatConfig {
     #[serde(alias = "experimentalSortImports")]
     pub sort_imports: Option<SortImportsUserConfig>,
 
+    // JHPATCH: Point to sortPackageJson.preset for prettier-plugin-packagejson's order
     /// Sort `package.json` keys.
     ///
-    /// The order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),
+    /// The default order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),
     /// but we believe it is clearer and easier to navigate.
+    /// Set `preset` to `"sort-package-json"` for the order prettier-plugin-packagejson produces.
     ///
     /// - Languages: JSON (`package.json` only)
     /// - Default: `true`
@@ -304,6 +306,17 @@ pub struct FormatConfig {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub jsdoc: Option<JsdocUserConfig>,
 
+    // JHPATCH: prettierCompat option to follow Prettier 3.9's union layout
+    /// Follow a newer Prettier version's output where Oxfmt deliberately keeps an earlier Prettier style.
+    ///
+    /// - `"3.9"`: a union type that does not fit on the line first retries flat on the indented next line,
+    ///   and only then breaks one member per line; a union in a conditional type branch starts behind `? ` / `: `
+    ///
+    /// - Languages: JS, JSX, TS, TSX
+    /// - Default: Disabled
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prettier_compat: Option<PrettierCompatConfig>,
+
     /// Options for `prettier-plugin-svelte`.
     ///
     /// Pass `true` or an object to enable `.svelte` file formatting, `false` to disable (handy in overrides).
@@ -329,6 +342,24 @@ pub struct FormatConfig {
     /// - Default: Disabled
     #[serde(skip_serializing_if = "Option::is_none")]
     pub astro: Option<AstroUserConfig>,
+
+    // JHPATCH: markdown options (markdown.lazyCodeSpanContinuation)
+    /// Options for Markdown files and Markdown embedded in other languages.
+    ///
+    /// - Languages: Markdown
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub markdown: Option<MarkdownConfig>,
+
+    // JHPATCH: toml options to match prettier-plugin-toml configs
+    /// Options for TOML files and TOML embedded in other languages (front matter, Markdown code blocks).
+    ///
+    /// Option names follow [prettier-plugin-toml](https://github.com/un-ts/prettier/tree/master/packages/toml),
+    /// but unset options keep Taplo's defaults, which differ from the plugin's for
+    /// `alignComments`, `alignSingleComments` and `allowedBlankLines`.
+    ///
+    /// - Languages: TOML
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub toml: Option<TomlConfig>,
 }
 
 impl FormatConfig {
@@ -354,6 +385,18 @@ impl FormatConfig {
     /// disabled when unset or `false`.
     pub fn is_astro_enabled(&self) -> bool {
         matches!(self.astro, Some(AstroUserConfig::Bool(true) | AstroUserConfig::Object(_)))
+    }
+
+    // JHPATCH: Enables oxc_formatter for JS in MDX when sortImports is set (sortImports in MDX)
+    /// Whether import sorting is enabled by this config.
+    ///
+    /// Enabled when `sortImports` is set to `true` or an object;
+    /// disabled when unset or `false`.
+    pub fn is_sort_imports_enabled(&self) -> bool {
+        matches!(
+            self.sort_imports,
+            Some(SortImportsUserConfig::Bool(true) | SortImportsUserConfig::Object(_))
+        )
     }
 
     /// Whether Tailwind class sorting is enabled by this config.
@@ -386,6 +429,17 @@ impl FormatConfig {
                     utils::normalize_relative_path(base_dir, path).to_string_lossy().to_string(),
                 );
             }
+        }
+    }
+
+    // JHPATCH: Record the directory the project prettier-plugin-astro is resolved from (astro.useProjectPlugin)
+    /// Record `base_dir` as the directory `prettier-plugin-astro` is resolved from,
+    /// when `astro.useProjectPlugin` is enabled.
+    pub fn resolve_astro_plugin_dir(&mut self, base_dir: &Path) {
+        if let Some(AstroUserConfig::Object(ref mut astro)) = self.astro
+            && astro.use_project_plugin == Some(true)
+        {
+            astro.project_plugin_dir = Some(base_dir.to_path_buf());
         }
     }
 
@@ -460,6 +514,13 @@ pub enum ObjectWrapConfig {
 pub enum OperatorPositionConfig {
     Start,
     End,
+}
+
+// JHPATCH: prettierCompat values
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, JsonSchema)]
+pub enum PrettierCompatConfig {
+    #[serde(rename = "3.9")]
+    V3_9,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, JsonSchema)]
@@ -537,6 +598,32 @@ pub struct SortImportsConfig {
     /// - Default: `false`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub partition_by_comment: Option<bool>,
+    // JHPATCH: sortImports.partitionBySideEffect option to match @ianvs/prettier-plugin-sort-imports
+    /// Use side effect imports to separate imports into logical groups.
+    ///
+    /// When `true`, imports are not sorted across a side effect import that keeps its position
+    /// (see `sortSideEffects`), or across an import suppressed with `prettier-ignore` / `oxfmt-ignore`.
+    /// Suppressed imports get the same blank lines as side effect imports.
+    /// An import with an empty `{}` and no comments (`import {} from 'a'`) is printed as the side effect import `import 'a'`,
+    /// as `@ianvs/prettier-plugin-sort-imports` does.
+    ///
+    /// If any group boundary inserts newlines (`newlinesBetween: true` or a `{ "newlinesBetween": true }` marker),
+    /// a run of side effect imports also gets a blank line after it, and one before it.
+    /// The blank line before is left out when the run starts with a comment
+    /// and no group boundary after the previous import's group inserts newlines.
+    ///
+    /// ```js
+    /// import { b } from 'b'
+    /// import { c } from 'c'
+    ///
+    /// import './setup'
+    ///
+    /// import { a } from 'a'
+    /// ```
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub partition_by_side_effect: Option<bool>,
     /// Sort side effect imports.
     ///
     /// Disabled by default for safety reasons.
@@ -554,6 +641,119 @@ pub struct SortImportsConfig {
     /// - Default: `true`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ignore_case: Option<bool>,
+    // JHPATCH: sortImports.collation option to match @ianvs/prettier-plugin-sort-imports
+    /// How import sources and specifier names are compared.
+    ///
+    /// - `"natural"`: Code point order, with digit runs compared as numbers.
+    /// - `"intl"`: The order of `a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true })`,
+    ///   as used by `@ianvs/prettier-plugin-sort-imports`.
+    ///   Symbols sort before digits and digits before letters (e.g. `@scope/pkg` before `#subpath`, `a_b` before `a-b`).
+    ///   The whole module specifier is compared, including any `?query`.
+    ///   Case is always ignored; with `ignoreCase: false`, names that compare equal are ordered by code point.
+    ///   Non-ASCII characters sort after ASCII letters by code point, which can differ from `Intl.Collator`.
+    ///
+    /// - Default: `"natural"`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collation: Option<SortCollationConfig>,
+    // JHPATCH: sortImports.sortSpecifiers option to match @ianvs/prettier-plugin-sort-imports
+    /// Sort named specifiers inside `{ ... }`.
+    ///
+    /// Value specifiers come before inline `type` specifiers, then specifiers are ordered by their local name,
+    /// following `collation`, `ignoreCase` and `order`.
+    /// Specifier lists that contain comments are left as written.
+    ///
+    /// ```js
+    /// import { alpha, Beta, Zed, type Alpha } from 'x'
+    /// ```
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sort_specifiers: Option<bool>,
+    // JHPATCH: sortImports.hoist option to match @ianvs/prettier-plugin-sort-imports
+    /// Move every top-level import into one block at the top of the file,
+    /// the way `@ianvs/prettier-plugin-sort-imports` does.
+    ///
+    /// The block follows the hashbang, the directives (and a blank line), and the comments directly after them.
+    /// A blank line separates the block from the rest of the file.
+    /// An import takes along the comments between the previous statement and itself,
+    /// except those on the line where the previous import starts, which stay with that import.
+    /// Comments that end on a line before the first import stay at the top of the block when imports are sorted.
+    /// A blank line separates an import's trailing comment from the next import's leading comment.
+    /// `export ... from` statements are not moved, and imports inside `declare module` blocks are not sorted.
+    ///
+    /// ```js
+    /// import { a } from 'a'
+    /// // Used by `run`.
+    /// import { b } from 'b'
+    ///
+    /// const x = 1
+    /// ```
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hoist: Option<bool>,
+    // JHPATCH: sortImports.mergeDuplicates option to match @ianvs/prettier-plugin-sort-imports
+    /// Merge imports of the same source into one declaration,
+    /// the way `@ianvs/prettier-plugin-sort-imports` does.
+    ///
+    /// Imports are merged within the imports that are sorted together
+    /// (every top-level import with `hoist`, otherwise each run of imports, split by the `partitionBy*` options).
+    /// The first import of a source takes in the later ones, with their specifiers after its own
+    /// and the comments above them below its own comments.
+    /// Value imports merge with value imports and type imports with type imports.
+    /// With `combineTypeAndValueImports` and without `splitTypeSpecifiers`,
+    /// type imports also merge with value imports as inline `type` specifiers.
+    ///
+    /// These are not merged: an import with a namespace specifier, two imports with a default specifier,
+    /// a type import with a default specifier, side effect imports, suppressed imports,
+    /// imports with different import attributes, and imports with comments outside `{ ... }`.
+    /// An import that cannot merge still keeps later imports of its source from merging into an earlier one.
+    ///
+    /// ```js
+    /// import React, { useState } from 'react'
+    /// ```
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub merge_duplicates: Option<bool>,
+    // JHPATCH: sortImports.splitTypeSpecifiers option to match @ianvs/prettier-plugin-sort-imports
+    /// Split the inline `type` specifiers of a value import into a type import,
+    /// the way `@ianvs/prettier-plugin-sort-imports` does.
+    ///
+    /// Applies to a value import with more than one specifier, some but not all of them inline `type` specifiers.
+    /// `import { type A } from 'a'` and `import { type A, type B } from 'a'` are left as written,
+    /// as are imports with import attributes.
+    /// Splitting runs after `mergeDuplicates`, so the new type import is not merged with other type imports
+    /// of its source until the file is formatted again.
+    ///
+    /// With `hoist`, the comments of a split import move below the imports, as they do with Prettier.
+    ///
+    /// ```js
+    /// import { b } from 'a'
+    /// import type { A } from 'a'
+    /// ```
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub split_type_specifiers: Option<bool>,
+    // JHPATCH: sortImports.combineTypeAndValueImports option to match @ianvs/prettier-plugin-sort-imports below TypeScript 4.5
+    /// Let `mergeDuplicates` merge type imports and value imports of the same source,
+    /// with the type import's named specifiers marked `type`.
+    ///
+    /// `@ianvs/prettier-plugin-sort-imports` turns this off when `importOrderTypeScriptVersion` is below 4.5.0.
+    /// Has no effect with `splitTypeSpecifiers`.
+    ///
+    /// ```js
+    /// // `true`
+    /// import { a, type A } from 'a'
+    /// // `false`
+    /// import { a } from 'a'
+    /// import type { A } from 'a'
+    /// ```
+    ///
+    /// - Default: `true`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub combine_type_and_value_imports: Option<bool>,
     /// Add newlines between groups.
     ///
     /// - Default: `true`
@@ -632,6 +832,14 @@ pub struct SortImportsConfig {
 pub enum SortOrderConfig {
     Asc,
     Desc,
+}
+
+// JHPATCH: sortImports.collation values
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum SortCollationConfig {
+    Natural,
+    Intl,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
@@ -772,6 +980,26 @@ pub struct SortPackageJsonConfig {
     /// - Default: `false`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sort_scripts: Option<bool>,
+    // JHPATCH: sortPackageJson.preset option for prettier-plugin-packagejson's order
+    /// The field order and nested sorting rules.
+    ///
+    /// - `"oxfmt"`: Oxfmt's own order.
+    /// - `"sort-package-json"`: The order of the [sort-package-json](https://github.com/keithamus/sort-package-json) npm package 3.5.0,
+    ///   which prettier-plugin-packagejson uses. `sortScripts` has no effect:
+    ///   `scripts` are sorted with `pre<name>` and `post<name>` next to `<name>`,
+    ///   unless an `npm-run-all` script runs a glob sequentially.
+    ///
+    /// - Default: `"oxfmt"`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preset: Option<SortPackageJsonPresetConfig>,
+}
+
+// JHPATCH: sortPackageJson.preset values
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum SortPackageJsonPresetConfig {
+    Oxfmt,
+    SortPackageJson,
 }
 
 // ---
@@ -1025,6 +1253,18 @@ pub struct AstroConfig {
     /// - Default: `"jsx"`
     #[serde(rename = "compressHTML", skip_serializing_if = "Option::is_none")]
     pub compress_html: Option<AstroCompressHtmlConfig>,
+    // JHPATCH: astro.useProjectPlugin option for projects that pin prettier-plugin-astro
+    /// Whether to use the `prettier-plugin-astro` installed in your project (e.g. `0.14.x`) instead of the bundled version.
+    /// It is resolved from the directory of the config file (the current working directory for the Node.js API).
+    /// Formatting fails if it cannot be resolved.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub use_project_plugin: Option<bool>,
+    /// Directory `prettier-plugin-astro` is resolved from when `use_project_plugin` is enabled.
+    #[serde(skip)]
+    #[schemars(skip)]
+    pub project_plugin_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, JsonSchema)]
@@ -1036,6 +1276,102 @@ pub enum AstroCompressHtmlConfig {
     Html,
     /// No collapsing.
     None,
+}
+
+// ---
+
+// JHPATCH: markdown options (markdown.lazyCodeSpanContinuation)
+#[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MarkdownConfig {
+    /// Print the continuation lines of a multi-line code span from column 0,
+    /// without the indentation or `>` markers of the enclosing list items and blockquotes
+    /// (lazy continuation lines), as Prettier does.
+    ///
+    /// Applies only when no continuation line starts with whitespace, so the code span reads the same.
+    /// Otherwise, and when disabled, continuation lines resume at the container's content column.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lazy_code_span_continuation: Option<bool>,
+}
+
+// ---
+
+// JHPATCH: toml options: oxc-toml settings under prettier-plugin-toml names
+#[derive(Debug, Clone, Default, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TomlConfig {
+    /// Align consecutive entries vertically.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub align_entries: Option<bool>,
+    /// Align consecutive comments after entries and array items vertically.
+    ///
+    /// - Default: `false` (`prettier-plugin-toml`: `true`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub align_comments: Option<bool>,
+    /// When `alignComments` is enabled, also align a comment that has no neighbor.
+    ///
+    /// `prettier-plugin-toml` has no such option and always aligns it.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub align_single_comments: Option<bool>,
+    /// The maximum number of consecutive blank lines.
+    ///
+    /// - Default: `2` (`prettier-plugin-toml`: `1`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_blank_lines: Option<u32>,
+    /// Expand arrays that exceed `printWidth` to multiple lines.
+    ///
+    /// - Default: `true`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub array_auto_expand: Option<bool>,
+    /// Collapse arrays that fit in `printWidth` and contain no comments.
+    ///
+    /// - Default: `true`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub array_auto_collapse: Option<bool>,
+    /// Omit whitespace padding inside single-line arrays.
+    ///
+    /// - Default: `true`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compact_arrays: Option<bool>,
+    /// Omit whitespace padding inside inline tables.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compact_inline_tables: Option<bool>,
+    /// Omit whitespace around `=`.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compact_entries: Option<bool>,
+    /// Indent subtables and arrays of tables under their parent table, if they come in order.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indent_tables: Option<bool>,
+    /// Indent entries under tables.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indent_entries: Option<bool>,
+    /// Alphabetically reorder keys that are not separated by blank lines.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reorder_keys: Option<bool>,
+    // JHPATCH: toml.trimLeadingBlankLines, which prettier-plugin-toml always does
+    /// Remove the blank lines at the start of the file.
+    ///
+    /// `prettier-plugin-toml` has no such option and always removes them.
+    ///
+    /// - Default: `false`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trim_leading_blank_lines: Option<bool>,
 }
 
 // ---

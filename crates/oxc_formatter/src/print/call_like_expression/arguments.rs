@@ -36,142 +36,163 @@ use crate::{
 
 impl<'a> Format<'a, JsFormatContext<'a>> for AstNode<'a, ArenaVec<'a, Argument<'a>>> {
     fn fmt(&self, f: &mut JsFormatter<'_, 'a>) {
-        let l_paren_token = "(";
-        let r_paren_token = ")";
+        // JHPATCH: Body moved to write_arguments, which chain-link calls share (sole multiline template fix)
+        write_arguments(self, true, f);
+    }
+}
 
-        let arguments = self.as_ref();
+// JHPATCH: Do not hug a sole multiline template in a non-head member chain call, as Prettier does
+/// The arguments of a member-chain call whose callee is itself a chain link (`b(...)` in `a.b(...).c()`).
+/// A sole multiline template is not hugged to the parentheses there, unlike in a standalone call.
+pub struct FormatChainLinkArguments<'a, 'b>(pub &'b AstNode<'a, ArenaVec<'a, Argument<'a>>>);
 
-        if self.is_empty() {
-            return write!(
-                f,
-                [
-                    l_paren_token,
-                    // `call/* comment1 */(/* comment2 */)` Both comments are dangling comments.
-                    format_dangling_comments(self.parent().span()).with_soft_block_indent(),
-                    r_paren_token
-                ]
-            );
-        }
+impl<'a> Format<'a, JsFormatContext<'a>> for FormatChainLinkArguments<'a, '_> {
+    fn fmt(&self, f: &mut JsFormatter<'_, 'a>) {
+        write_arguments(self.0, false, f);
+    }
+}
 
-        let is_simple_module_import = is_simple_module_import(self, f.comments());
+// JHPATCH: Upstream Arguments::fmt body with a hugs_verbatim_template switch for chain-link calls
+fn write_arguments<'a>(
+    node: &AstNode<'a, ArenaVec<'a, Argument<'a>>>,
+    hugs_verbatim_template: bool,
+    f: &mut JsFormatter<'_, 'a>,
+) {
+    let l_paren_token = "(";
+    let r_paren_token = ")";
 
-        let call_expression =
-            if !is_simple_module_import && let AstNodes::CallExpression(call) = self.parent() {
-                Some(call)
-            } else {
-                None
-            };
+    let arguments = node.as_ref();
 
-        let call = call_expression.map(AsRef::as_ref);
+    if node.is_empty() {
+        return write!(
+            f,
+            [
+                l_paren_token,
+                // `call/* comment1 */(/* comment2 */)` Both comments are dangling comments.
+                format_dangling_comments(node.parent().span()).with_soft_block_indent(),
+                r_paren_token
+            ]
+        );
+    }
 
-        if is_simple_module_import
-            || call_expression.is_some_and(|call| {
-                is_commonjs_or_amd_call(self, call, f)
-                    || ((self.len() != 2
-                        || matches!(
-                            arguments.first(),
-                            Some(
-                                Argument::StringLiteral(_)
-                                    | Argument::TemplateLiteral(_)
-                                    | Argument::TaggedTemplateExpression(_)
-                            )
-                        ))
-                        && is_test_call_expression(call, f.comments()))
-            })
-            || is_verbatim_multiline_template_sole_arg(arguments, call, f)
-            || is_react_hook_with_deps_array(self, f.comments())
-        {
-            return write!(
-                f,
-                [
-                    l_paren_token,
-                    format_with(|f| {
-                        f.join_with(space()).entries_with_trailing_separator(
-                            self.iter(),
-                            ",",
-                            TrailingSeparator::Omit,
-                        );
-                    }),
-                    r_paren_token
-                ]
-            );
-        }
+    let is_simple_module_import = is_simple_module_import(node, f.comments());
 
-        // Check if there's an empty line (2+ newlines) between any consecutive arguments.
-        // This is used to preserve intentional blank lines in the original source.
-        let has_empty_line = arguments.windows(2).any(|window| {
-            let (cur_arg, next_arg) = (&window[0], &window[1]);
-
-            // Count newlines between arguments, short-circuiting at 2 for performance
-            // Check if there are at least two newlines between arguments
-            f.source_text()
-                .bytes_range(cur_arg.span().end, next_arg.span().start)
-                .iter()
-                .filter(|&&b| b == b'\n')
-                .nth(1)
-                .is_some()
-        });
-
-        if has_empty_line
-            || (!matches!(self.grand_parent(), AstNodes::Decorator(_))
-                && is_function_composition_args(self))
-        {
-            return format_all_args_broken_out(self, true, f);
-        }
-
-        // A sole embedded template expands like a last argument (unlike a verbatim one)
-        let group_layout = match arguments.as_slice() {
-            [argument]
-                if argument.as_expression().and_then(|expr| embed_hug(expr, call, f))
-                    == Some(true) =>
-            {
-                Some(GroupedCallArgumentLayout::GroupedLastArgument)
-            }
-            _ => arguments_grouped_layout(self, f),
-        };
-        if let Some(group_layout) = group_layout {
-            write_grouped_arguments(self, group_layout, f);
-        } else if call_expression.is_some_and(|call| is_long_curried_call(call)) {
-            let trailing_operator = FormatTrailingCommas::All.trailing_separator(f.options());
-            write!(
-                f,
-                [
-                    l_paren_token,
-                    soft_block_indent(&format_with(|f| {
-                        f.join_with(soft_line_break_or_space()).entries_with_trailing_separator(
-                            self.iter(),
-                            ",",
-                            trailing_operator,
-                        );
-                    })),
-                    r_paren_token,
-                ]
-            );
+    let call_expression =
+        if !is_simple_module_import && let AstNodes::CallExpression(call) = node.parent() {
+            Some(call)
         } else {
-            let interned = f.intern(&format_args!(
-                "(",
-                soft_block_indent(&format_with(move |f| {
-                    let separator = format_with(|f| write!(f, [",", soft_line_break_or_space()]));
-                    f.join_with(&separator).entries(self.iter());
-                    write!(
-                        f,
-                        [(!matches!(self.parent(), AstNodes::ImportExpression(_)))
-                            .then_some(FormatTrailingCommas::All)]
+            None
+        };
+
+    let call = call_expression.map(AsRef::as_ref);
+
+    if is_simple_module_import
+        || call_expression.is_some_and(|call| {
+            is_commonjs_or_amd_call(node, call, f)
+                || ((node.len() != 2
+                    || matches!(
+                        arguments.first(),
+                        Some(
+                            Argument::StringLiteral(_)
+                                | Argument::TemplateLiteral(_)
+                                | Argument::TaggedTemplateExpression(_)
+                        )
+                    ))
+                    && is_test_call_expression(call, f.comments()))
+        })
+        // JHPATCH: Chain-link calls do not hug a sole multiline template
+        || (hugs_verbatim_template && is_verbatim_multiline_template_sole_arg(arguments, call, f))
+        || is_react_hook_with_deps_array(node, f.comments())
+    {
+        return write!(
+            f,
+            [
+                l_paren_token,
+                format_with(|f| {
+                    f.join_with(space()).entries_with_trailing_separator(
+                        node.iter(),
+                        ",",
+                        TrailingSeparator::Omit,
+                    );
+                }),
+                r_paren_token
+            ]
+        );
+    }
+
+    // Check if there's an empty line (2+ newlines) between any consecutive arguments.
+    // This is used to preserve intentional blank lines in the original source.
+    let has_empty_line = arguments.windows(2).any(|window| {
+        let (cur_arg, next_arg) = (&window[0], &window[1]);
+
+        // Count newlines between arguments, short-circuiting at 2 for performance
+        // Check if there are at least two newlines between arguments
+        f.source_text()
+            .bytes_range(cur_arg.span().end, next_arg.span().start)
+            .iter()
+            .filter(|&&b| b == b'\n')
+            .nth(1)
+            .is_some()
+    });
+
+    if has_empty_line
+        || (!matches!(node.grand_parent(), AstNodes::Decorator(_))
+            && is_function_composition_args(node))
+    {
+        return format_all_args_broken_out(node, true, f);
+    }
+
+    // A sole embedded template expands like a last argument (unlike a verbatim one)
+    let group_layout = match arguments.as_slice() {
+        [argument]
+            if argument.as_expression().and_then(|expr| embed_hug(expr, call, f)) == Some(true) =>
+        {
+            Some(GroupedCallArgumentLayout::GroupedLastArgument)
+        }
+        _ => arguments_grouped_layout(node, f),
+    };
+    if let Some(group_layout) = group_layout {
+        write_grouped_arguments(node, group_layout, f);
+    } else if call_expression.is_some_and(|call| is_long_curried_call(call)) {
+        let trailing_operator = FormatTrailingCommas::All.trailing_separator(f.options());
+        write!(
+            f,
+            [
+                l_paren_token,
+                soft_block_indent(&format_with(|f| {
+                    f.join_with(soft_line_break_or_space()).entries_with_trailing_separator(
+                        node.iter(),
+                        ",",
+                        trailing_operator,
                     );
                 })),
-                ")",
-            ));
-
-            if let Some(element) = interned {
-                let should_expand = element.will_break();
+                r_paren_token,
+            ]
+        );
+    } else {
+        let interned = f.intern(&format_args!(
+            "(",
+            soft_block_indent(&format_with(move |f| {
+                let separator = format_with(|f| write!(f, [",", soft_line_break_or_space()]));
+                f.join_with(&separator).entries(node.iter());
                 write!(
                     f,
-                    group(&format_once(|f| {
-                        f.write_element(element);
-                    }))
-                    .should_expand(should_expand)
+                    [(!matches!(node.parent(), AstNodes::ImportExpression(_)))
+                        .then_some(FormatTrailingCommas::All)]
                 );
-            }
+            })),
+            ")",
+        ));
+
+        if let Some(element) = interned {
+            let should_expand = element.will_break();
+            write!(
+                f,
+                group(&format_once(|f| {
+                    f.write_element(element);
+                }))
+                .should_expand(should_expand)
+            );
         }
     }
 }

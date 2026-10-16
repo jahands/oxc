@@ -1,9 +1,9 @@
 use std::{borrow::Cow, path::Path};
 
-use cow_utils::CowUtils;
 use phf::phf_set;
 
 use crate::ir_transform::sort_imports::{
+    collation::normalize_name,
     group_config::{ImportModifier, ImportSelector},
     group_matcher::{GroupMatcher, ImportMetadata},
     options::SortImportsOptions,
@@ -28,9 +28,10 @@ pub fn compute_import_metadata<'a>(
         modifiers: compute_modifiers(metadata),
     });
 
-    // Pre-compute normalized source for case-insensitive comparison
-    let normalized_source =
-        if options.ignore_case { source.cow_to_lowercase() } else { Cow::Borrowed(source) };
+    // JHPATCH: Normalize sources for the configured collation (sortImports.collation)
+    // `Intl` collation compares the whole specifier, including any `?query`.
+    let sort_source = if options.collation.is_intl() { unquote(metadata.source) } else { source };
+    let normalized_source = normalize_name(sort_source, options);
 
     // Determine if this import should be ignored (not moved between groups)
     // - If `sort_side_effects: true`, never ignore
@@ -43,10 +44,12 @@ pub fn compute_import_metadata<'a>(
     let should_regroup_side_effect = group_matcher.should_regroup_side_effect();
     let should_regroup_side_effect_style = group_matcher.should_regroup_side_effect_style();
 
-    let is_ignored = !options.sort_side_effects
-        && metadata.is_side_effect
-        && !should_regroup_side_effect
-        && (!is_style_import || !should_regroup_side_effect_style);
+    // JHPATCH: Keep suppressed imports in place (sortImports.partitionBySideEffect)
+    let is_ignored = metadata.is_suppressed
+        || (!options.sort_side_effects
+            && metadata.is_side_effect
+            && !should_regroup_side_effect
+            && (!is_style_import || !should_regroup_side_effect_style));
 
     (group_idx, normalized_source, is_ignored)
 }
@@ -147,8 +150,14 @@ fn compute_modifiers(metadata: &ImportLineMetadata) -> Vec<ImportModifier> {
 /// This removes quotes and query parameters from the source string.
 /// For example, `"./foo.js?bar"` becomes `./foo.js`.
 fn extract_source_path(source: &str) -> &str {
-    let source = source.trim_matches('"').trim_matches('\'');
+    // JHPATCH: Share unquote with the Intl source key (sortImports.collation)
+    let source = unquote(source);
     source.split('?').next().unwrap_or(source)
+}
+
+// JHPATCH: Share unquote with the Intl source key (sortImports.collation)
+fn unquote(source: &str) -> &str {
+    source.trim_matches('"').trim_matches('\'')
 }
 
 // spellchecker:off
@@ -163,8 +172,9 @@ static STYLE_EXTENSIONS: phf::Set<&'static str> = phf_set! {
 };
 // spellchecker:on
 
+// JHPATCH: Shared with the side effect check of import merging (sortImports.mergeDuplicates)
 /// Check if an import source is a style file based on its extension.
-fn is_style(source: &str) -> bool {
+pub(super) fn is_style(source: &str) -> bool {
     Path::new(source)
         .extension()
         .and_then(|ext| ext.to_str())

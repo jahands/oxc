@@ -5,7 +5,7 @@ use serde_json::Value;
 use tracing::{debug, instrument};
 
 use oxc_allocator::Allocator;
-use oxc_formatter::FragmentContext;
+use oxc_formatter::{FragmentContext, JsEmbeddedIn};
 use oxc_formatter_core::{FormatSession, InputKind};
 use oxc_span::SourceType;
 
@@ -76,7 +76,8 @@ pub fn run(
         "vue-for-binding-left" => Some(FragmentKind::VueForBindingLeft),
         "vue-bindings" => Some(FragmentKind::VueBindings),
         "vue-script-generic" => Some(FragmentKind::VueScriptGeneric),
-        // "vue-script" | "svelte-script" | "astro"
+        // JHPATCH: MDX parent contexts (sortImports in MDX)
+        // "vue-script" | "svelte-script" | "astro" | "mdx" | "mdx-esm"
         _ => None,
     };
 
@@ -87,6 +88,8 @@ pub fn run(
             source_type,
             source_text,
             oxfmt_plugin_options_json,
+            // JHPATCH: Pass the parent context to pick the MDX embedding (sortImports in MDX)
+            parent_context,
             format_file_cb,
             format_embedded_cb,
             format_embedded_doc_cb,
@@ -115,6 +118,8 @@ fn run_full(
     source_type: SourceType,
     source_text: &str,
     oxfmt_plugin_options_json: &str,
+    // JHPATCH: Parent context that selects the MDX embedding (sortImports in MDX)
+    parent_context: &str,
     format_file_cb: JsFormatFileCb,
     format_embedded_cb: JsFormatEmbeddedCb,
     format_embedded_doc_cb: JsFormatEmbeddedDocCb,
@@ -148,8 +153,20 @@ fn run_full(
         InputKind::VirtualDocument,
         services,
     );
+    // JHPATCH: Format MDX ESM blocks and code blocks as embedded programs (sortImports in MDX)
+    let embedded_in = match parent_context {
+        "mdx" => Some(JsEmbeddedIn::MarkdownCodeBlock),
+        "mdx-esm" => Some(JsEmbeddedIn::MdxEsm),
+        _ => None,
+    };
     let formatted = match tokio::task::block_in_place(|| {
-        oxc_formatter::format_with_session(&session, source_text, source_type, format_options)
+        oxc_formatter::format_embedded_with_session(
+            &session,
+            source_text,
+            source_type,
+            format_options,
+            embedded_in,
+        )
     }) {
         Ok(formatted) => formatted,
         Err(err) => {

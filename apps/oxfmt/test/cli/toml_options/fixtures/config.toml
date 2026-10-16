@@ -1,0 +1,8 @@
+[package]
+name = "test" # the name
+version = "0.1.0"
+
+
+
+[dependencies]
+foo = "1.0"

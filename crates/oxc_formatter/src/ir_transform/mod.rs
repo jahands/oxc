@@ -25,6 +25,7 @@
 //! - <https://github.com/oxc-project/oxc/pull/14651> (initial experiment, IR level)
 //! - <https://github.com/oxc-project/oxc/pull/22065> (move to during-IR-construction)
 
-mod sort_imports;
+// JHPATCH: Expose sort_imports::collation to the specifier printer (sortImports.sortSpecifiers)
+pub mod sort_imports;
 
 pub use sort_imports::*;

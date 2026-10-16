@@ -112,13 +112,17 @@ function resolveRefs(node: unknown, rawRefs: unknown[], cache: unknown[]): unkno
   return out;
 }
 
+// JHPATCH: Detect MDX import/export blocks so oxc_formatter can sort their imports (sortImports in MDX)
 /**
- * Detects Vue fragment mode from Prettier's internal flags.
+ * Detects Vue fragment mode and MDX ESM blocks from Prettier's internal flags.
  *
  * When Prettier formats Vue SFC templates, it calls textToDoc with special flags:
  * - `__isVueForBindingLeft`: v-for left-hand side (e.g., `(item, index)` in `v-for="(item, index) in items"`)
  * - `__isVueBindings`: v-slot bindings (e.g., `{ item }` in `#default="{ item }"`)
  * - `__isEmbeddedTypescriptGenericParameters`: `<script generic="...">` type parameters
+ *
+ * For MDX `import` / `export` blocks (not code blocks), it passes `__onHtmlBindingRoot`,
+ * which rejects a program with other statements.
  */
 function detectParentContext(parentParser: string, options: Record<string, unknown>): string {
   if (parentParser === "vue") {
@@ -129,6 +133,10 @@ function detectParentContext(parentParser: string, options: Record<string, unkno
   }
   if (parentParser === "svelte") {
     return "svelte-script";
+  }
+  // JHPATCH: Report MDX import/export blocks as mdx-esm (sortImports in MDX)
+  if (parentParser === "mdx" && typeof options.__onHtmlBindingRoot === "function") {
+    return "mdx-esm";
   }
 
   return parentParser;

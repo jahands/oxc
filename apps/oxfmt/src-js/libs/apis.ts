@@ -12,6 +12,9 @@
  * and avoiding redundant dynamic imports within the same process.
  */
 
+import { createRequire } from "node:module";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import type { Options, Plugin } from "prettier";
 
 const CACHES = {
@@ -21,7 +24,13 @@ const CACHES = {
   tailwindPlugin: null as typeof import("prettier-plugin-tailwindcss") | null,
   tailwindSorter: null as typeof import("prettier-plugin-tailwindcss/sorter") | null,
   oxfmtPlugin: null as Plugin | null,
+  // JHPATCH: Cache the MDX comment plugin (DIVERGENCES.md#mdx-multiline-comment)
+  mdxPlugin: null as Plugin | null,
 };
+
+// JHPATCH: Cache the project's prettier-plugin-astro per directory (astro.useProjectPlugin)
+// `prettier-plugin-astro` installed in the project, keyed by the directory it is resolved from
+const PROJECT_ASTRO_PLUGINS = new Map<string, Plugin>();
 
 async function loadCached<K extends keyof typeof CACHES>(
   key: K,
@@ -93,6 +102,9 @@ export async function formatFile({ code, options }: FormatFileParam): Promise<st
   if ("_useTailwindPlugin" in options) await setupTailwindPlugin(options);
   // This plugin overrides `babel(-ts)` and `typescript` parsers to use `oxc_formatter` instead of built-in parsers
   if ("_oxfmtPluginOptionsJson" in options) await setupOxfmtPlugin(options);
+  // JHPATCH: Keep multi-line MDX comments verbatim (DIVERGENCES.md#mdx-multiline-comment)
+  // This plugin overrides the `mdx` parser to keep multi-line comments verbatim
+  if (options.parser === "mdx") await setupMdxPlugin(options);
 
   // This is needed to detect tsx-in-vue properly, see `prettier-plugin-oxfmt` for details.
   // All `<script>` blocks in one SFC must share the same `lang` (Vue compiler restriction),
@@ -101,7 +113,8 @@ export async function formatFile({ code, options }: FormatFileParam): Promise<st
     options._oxfmtVueScriptLang = "tsx";
   }
 
-  return prettier.format(code, options);
+  // JHPATCH: Reset PRETTIER_DEBUG, which the unpatched project prettier-plugin-astro leaves set (astro.useProjectPlugin)
+  return withPrettierDebugRestored(() => prettier.format(code, options));
 }
 
 // `<script` + a tag boundary (so `<scripts` does not match) + attributes + the tag-closing `>`.
@@ -182,6 +195,9 @@ export async function formatEmbeddedDoc({
   if ("_useAstroPlugin" in options) await setupAstroPlugin(options);
   // Enable Tailwind CSS plugin for embedded code (e.g., html`...` in JS) if needed
   if ("_useTailwindPlugin" in options) await setupTailwindPlugin(options);
+  // JHPATCH: Keep multi-line MDX comments verbatim in Markdown mdx code blocks (DIVERGENCES.md#mdx-multiline-comment)
+  // Keep multi-line comments verbatim in ` ```mdx ` code blocks in Markdown
+  if (options.parser === "mdx") await setupMdxPlugin(options);
 
   const metadata: Record<string, unknown> = {};
 
@@ -200,8 +216,11 @@ export async function formatEmbeddedDoc({
   // - Specified parser is not available
   // - Or, code has syntax errors
   // In such cases, Rust side will fallback to original code
-  // @ts-expect-error: Use internal API, but it's necessary and only way to get `Doc`
-  const doc = await prettier.__debug.printToDoc(code, options);
+  // JHPATCH: Reset PRETTIER_DEBUG, which the unpatched project prettier-plugin-astro leaves set (astro.useProjectPlugin)
+  const doc = await withPrettierDebugRestored(
+    // @ts-expect-error: Use internal API, but it's necessary and only way to get `Doc`
+    () => prettier.__debug.printToDoc(code, options),
+  );
 
   // Serialize as [doc, metadata], handling special values:
   // - Symbol group IDs → numeric counters
@@ -294,16 +313,59 @@ async function setupSveltePlugin(options: Options): Promise<void> {
 // Astro plugin support
 // ---
 
+// JHPATCH: Load the project's prettier-plugin-astro instead of the bundled one (astro.useProjectPlugin)
 /**
  * Load prettier-plugin-astro to provide the `astro` parser.
+ * `_astroProjectPluginDir` (`astro.useProjectPlugin`) selects the project's plugin over the bundled one.
  */
 async function setupAstroPlugin(options: Options): Promise<void> {
-  CACHES.astroPlugin ??= await loadCached(
-    "astroPlugin",
-    async () => (await import("prettier-plugin-astro")) as Plugin,
-  );
+  const projectPluginDir = options._astroProjectPluginDir;
+  const plugin =
+    typeof projectPluginDir === "string"
+      ? await loadProjectAstroPlugin(projectPluginDir)
+      : await loadCached(
+          "astroPlugin",
+          async () => (await import("prettier-plugin-astro")) as Plugin,
+        );
   options.plugins ??= [];
-  options.plugins.push(CACHES.astroPlugin);
+  options.plugins.push(plugin);
+}
+
+// JHPATCH: Resolve prettier-plugin-astro from the project directory (astro.useProjectPlugin)
+async function loadProjectAstroPlugin(dir: string): Promise<Plugin> {
+  const cached = PROJECT_ASTRO_PLUGINS.get(dir);
+  if (cached) return cached;
+
+  let pluginPath: string;
+  try {
+    pluginPath = createRequire(join(dir, "noop.js")).resolve("prettier-plugin-astro");
+  } catch (err) {
+    throw new Error(
+      `\`astro.useProjectPlugin\` is enabled, but \`prettier-plugin-astro\` cannot be resolved from ${dir}. Install it in your project.`,
+      { cause: err },
+    );
+  }
+
+  const plugin = (await import(pathToFileURL(pluginPath).href)) as Plugin;
+  PROJECT_ASTRO_PLUGINS.set(dir, plugin);
+  return plugin;
+}
+
+// JHPATCH: Restore PRETTIER_DEBUG after the unpatched project prettier-plugin-astro sets it (astro.useProjectPlugin)
+/**
+ * Run `fn` and restore `process.env.PRETTIER_DEBUG` afterwards.
+ * `prettier-plugin-astro` sets it on an embed error and never resets it,
+ * which makes later embed errors in this process throw instead of keeping the part as-is.
+ * The bundled plugin is patched at build time; the project's plugin is not.
+ */
+async function withPrettierDebugRestored<T>(fn: () => Promise<T>): Promise<T> {
+  const prettierDebug = process.env.PRETTIER_DEBUG;
+  try {
+    return await fn();
+  } finally {
+    if (prettierDebug === undefined) delete process.env.PRETTIER_DEBUG;
+    else process.env.PRETTIER_DEBUG = prettierDebug;
+  }
 }
 
 // ---
@@ -320,4 +382,21 @@ async function setupOxfmtPlugin(options: Options): Promise<void> {
   );
   options.plugins ??= [];
   options.plugins.push(CACHES.oxfmtPlugin);
+}
+
+// JHPATCH: Load the plugin that keeps multi-line MDX comments verbatim (DIVERGENCES.md#mdx-multiline-comment)
+// ---
+// MDX comment support
+// ---
+
+/**
+ * Load the plugin that overrides the `mdx` parser to keep multi-line comments verbatim.
+ */
+async function setupMdxPlugin(options: Options): Promise<void> {
+  CACHES.mdxPlugin ??= await loadCached(
+    "mdxPlugin",
+    async () => (await import("./prettier-plugin-mdx")) as Plugin,
+  );
+  options.plugins ??= [];
+  options.plugins.push(CACHES.mdxPlugin);
 }

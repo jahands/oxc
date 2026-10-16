@@ -59,6 +59,8 @@ impl<'a> SourceLine<'a> {
         let mut seen_from_keyword = false;
 
         let import_label = LabelId::of(JsLabels::ImportDeclaration);
+        // JHPATCH: Read suppressed imports as imports that keep their position (sortImports.partitionBySideEffect)
+        let suppressed_import_label = LabelId::of(JsLabels::SuppressedImportDeclaration);
         for idx in range.clone() {
             let element = &elements[idx];
 
@@ -66,6 +68,26 @@ impl<'a> SourceLine<'a> {
             if let FormatElement::Tag(Tag::StartLabelled(id)) = element {
                 if *id == import_label {
                     has_import = true;
+                // JHPATCH: Suppressed import line metadata (sortImports.partitionBySideEffect)
+                } else if *id == suppressed_import_label {
+                    return SourceLine::Import(
+                        range.clone(),
+                        ImportLineMetadata {
+                            source: "",
+                            is_suppressed: true,
+                            has_leading_comment: has_comment_before_import(elements, range.clone()),
+                            has_trailing_comment: has_comment_after_import(elements, range),
+                            // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+                            moving_comments: 0,
+                            is_split: false,
+                            joins_comment_when_first: false,
+                            is_side_effect: false,
+                            is_type_import: false,
+                            has_default_specifier: false,
+                            has_namespace_specifier: false,
+                            has_named_specifier: false,
+                        },
+                    );
                 }
                 continue;
             }
@@ -136,9 +158,17 @@ impl<'a> SourceLine<'a> {
         }
 
         SourceLine::Import(
-            range,
+            // JHPATCH: Suppression and trailing comment metadata (sortImports.partitionBySideEffect, sortImports.hoist)
+            range.clone(),
             ImportLineMetadata {
                 source: source.expect("`ImportDeclaration` must have a source"),
+                is_suppressed: false,
+                has_leading_comment: has_comment_before_import(elements, range.clone()),
+                has_trailing_comment: has_comment_after_import(elements, range),
+                // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+                moving_comments: 0,
+                is_split: false,
+                joins_comment_when_first: false,
                 is_side_effect,
                 is_type_import,
                 has_default_specifier,
@@ -146,6 +176,76 @@ impl<'a> SourceLine<'a> {
                 has_named_specifier,
             },
         )
+    }
+
+    // JHPATCH: Comment shape for the line break before an import (sortImports.hoist)
+    /// Whether the first comment on this line is a line comment or spans lines.
+    pub fn first_comment_ends_line(&self, elements: &[FormatElement<'_>]) -> bool {
+        let (Self::Import(range, _) | Self::CommentOnly(range, _)) = self else {
+            return false;
+        };
+        let comment_label = LabelId::of(JsLabels::Comment);
+        let Some(start) = elements[range.clone()].iter().position(|element| {
+            matches!(element, FormatElement::Tag(Tag::StartLabelled(id)) if *id == comment_label)
+        }) else {
+            return false;
+        };
+        let mut depth = 0;
+        let mut is_first_text = true;
+        for element in &elements[range.start + start + 1..range.end] {
+            match element {
+                FormatElement::Tag(Tag::StartLabelled(_)) => depth += 1,
+                FormatElement::Tag(Tag::EndLabelled) if depth == 0 => break,
+                FormatElement::Tag(Tag::EndLabelled) => depth -= 1,
+                FormatElement::Line(_) => return true,
+                FormatElement::Token { text } | FormatElement::Text { text, .. } => {
+                    if (is_first_text && text.starts_with("//")) || text.contains('\n') {
+                        return true;
+                    }
+                    is_first_text = false;
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
+    // JHPATCH: Line break between an import and the comments before it on its line (sortImports.hoist)
+    /// Write an `Import` line with a line break between its leading comments and the import.
+    pub fn write_import_on_own_line(
+        &self,
+        prev_elements: &[FormatElement<'a>],
+        next_elements: &mut ArenaVec<'a, FormatElement<'a>>,
+    ) {
+        let Self::Import(range, _) = self else {
+            return self.write(prev_elements, next_elements, false);
+        };
+        let import_label = LabelId::of(JsLabels::ImportDeclaration);
+        let suppressed_import_label = LabelId::of(JsLabels::SuppressedImportDeclaration);
+        let import_start = range
+            .clone()
+            .find(|&idx| {
+                matches!(
+                    prev_elements[idx],
+                    FormatElement::Tag(Tag::StartLabelled(id))
+                        if id == import_label || id == suppressed_import_label
+                )
+            })
+            .unwrap_or(range.start);
+        let comments_end = (range.start..import_start)
+            .rev()
+            .find(|&idx| {
+                !matches!(prev_elements[idx], FormatElement::Space | FormatElement::Line(_))
+            })
+            .map_or(range.start, |idx| idx + 1);
+        for element in &prev_elements[range.start..comments_end] {
+            next_elements.push(element.clone());
+        }
+        next_elements.push(FormatElement::Line(LineMode::Hard));
+        for element in &prev_elements[import_start..range.end] {
+            next_elements.push(element.clone());
+        }
+        next_elements.push(FormatElement::Line(LineMode::Hard));
     }
 
     pub fn write(
@@ -184,6 +284,22 @@ impl<'a> SourceLine<'a> {
 pub struct ImportLineMetadata<'a> {
     /// Index of the import source in the original `elements` slice.
     pub source: &'a str,
+    // JHPATCH: Suppression and trailing comment metadata (sortImports.partitionBySideEffect, sortImports.hoist)
+    /// Whether this import is suppressed (`prettier-ignore` / `oxfmt-ignore`) and printed verbatim.
+    /// The fields other than `has_leading_comment` and `has_trailing_comment` are not computed for it.
+    pub is_suppressed: bool,
+    /// Whether a comment precedes the import on its line.
+    pub has_leading_comment: bool,
+    /// Whether a comment follows the import on its line.
+    pub has_trailing_comment: bool,
+    // JHPATCH: Rewritten import metadata (sortImports.hoist, sortImports.mergeDuplicates, sortImports.splitTypeSpecifiers)
+    /// Number of comments on lines of their own directly above the import that move with it
+    /// when it is the first import ([`super::ImportRewriteInfo::moving_comments`]).
+    pub moving_comments: usize,
+    /// Whether this import was split from a value import with inline `type` specifiers.
+    pub is_split: bool,
+    /// See [`super::ImportRewriteInfo::joins_comment_when_first`].
+    pub joins_comment_when_first: bool,
     /// Whether this is a side-effect-only import (e.g., `import "foo"`).
     pub is_side_effect: bool,
     /// Whether this is a type-only import (e.g., `import type { Foo } from "foo"`).
@@ -194,4 +310,56 @@ pub struct ImportLineMetadata<'a> {
     pub has_namespace_specifier: bool,
     /// Whether this import has named specifiers (e.g., `import { foo } from "foo"`).
     pub has_named_specifier: bool,
+}
+
+// JHPATCH: Leading comment detection (sortImports.partitionBySideEffect)
+/// Whether a comment precedes the import in `elements[range]`, a line that holds an import.
+fn has_comment_before_import(elements: &[FormatElement<'_>], range: Range<usize>) -> bool {
+    let import_label = LabelId::of(JsLabels::ImportDeclaration);
+    let suppressed_import_label = LabelId::of(JsLabels::SuppressedImportDeclaration);
+    let comment_label = LabelId::of(JsLabels::Comment);
+    elements[range]
+        .iter()
+        .find_map(|element| match element {
+            FormatElement::Tag(Tag::StartLabelled(id))
+                if *id == import_label || *id == suppressed_import_label =>
+            {
+                Some(false)
+            }
+            FormatElement::Tag(Tag::StartLabelled(id)) if *id == comment_label => Some(true),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+// JHPATCH: Trailing comment detection (sortImports.partitionBySideEffect, sortImports.hoist)
+/// Whether a comment follows the import in `elements[range]`, a line that holds an import.
+fn has_comment_after_import(elements: &[FormatElement<'_>], range: Range<usize>) -> bool {
+    let import_label = LabelId::of(JsLabels::ImportDeclaration);
+    let suppressed_import_label = LabelId::of(JsLabels::SuppressedImportDeclaration);
+    let comment_label = LabelId::of(JsLabels::Comment);
+    let mut open_labels = vec![];
+    let mut after_import = false;
+    for element in &elements[range] {
+        match element {
+            FormatElement::Tag(Tag::StartLabelled(id)) => {
+                // A suppressed import holds its trailing comments.
+                if *id == comment_label
+                    && (after_import || open_labels.last() == Some(&suppressed_import_label))
+                {
+                    return true;
+                }
+                open_labels.push(*id);
+            }
+            FormatElement::Tag(Tag::EndLabelled)
+                if open_labels
+                    .pop()
+                    .is_some_and(|id| id == import_label || id == suppressed_import_label) =>
+            {
+                after_import = true;
+            }
+            _ => {}
+        }
+    }
+    false
 }

@@ -1,0 +1,13 @@
+{
+  "toml": {
+    "alignComments": true,
+    "alignSingleComments": true,
+    "allowedBlankLines": 1
+  },
+  "overrides": [
+    {
+      "files": ["mise.toml"],
+      "options": { "toml": { "alignEntries": true } }
+    }
+  ]
+}

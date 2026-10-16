@@ -11,6 +11,12 @@ pub struct SortImportsOptions {
     /// Partition imports by comments.
     /// Default is `false`.
     pub partition_by_comment: bool,
+    // JHPATCH: sortImports.partitionBySideEffect option
+    /// Partition imports by side effect imports that keep their position,
+    /// and by suppressed imports.
+    /// A value import with an empty `{}` and no comments is printed as a side effect import.
+    /// Default is `false`.
+    pub partition_by_side_effect: bool,
     /// Sort side effects imports.
     /// Default is `false`.
     pub sort_side_effects: bool,
@@ -20,6 +26,34 @@ pub struct SortImportsOptions {
     /// Ignore case when sorting.
     /// Default is `true`.
     pub ignore_case: bool,
+    // JHPATCH: sortImports.collation, sortImports.sortSpecifiers and sortImports.hoist options
+    /// How import sources (and specifiers, with `sort_specifiers`) are compared.
+    /// Default is [`SortCollation::Natural`].
+    pub collation: SortCollation,
+    /// Sort named specifiers inside `{ ... }`.
+    /// Default is `false`.
+    pub sort_specifiers: bool,
+    /// Move every top-level import into one block at the top of the file,
+    /// with comments placed the way `@ianvs/prettier-plugin-sort-imports` places them.
+    /// Imports inside `declare module` blocks are not sorted.
+    /// Default is `false`.
+    pub hoist: bool,
+    // JHPATCH: sortImports.mergeDuplicates and sortImports.splitTypeSpecifiers options
+    /// Merge imports of the same source into one declaration,
+    /// with the rules of `@ianvs/prettier-plugin-sort-imports`.
+    /// Type imports merge into value imports only with `combine_type_and_value_imports`
+    /// and without `split_type_specifiers`.
+    /// Default is `false`.
+    pub merge_duplicates: bool,
+    /// Split inline `type` specifiers out of a value import into a type import,
+    /// with the rules of `@ianvs/prettier-plugin-sort-imports`.
+    /// Default is `false`.
+    pub split_type_specifiers: bool,
+    // JHPATCH: sortImports.combineTypeAndValueImports option to match @ianvs/prettier-plugin-sort-imports below TypeScript 4.5
+    /// Let `merge_duplicates` merge type imports and value imports of the same source.
+    /// Has no effect with `split_type_specifiers`.
+    /// Default is `true`.
+    pub combine_type_and_value_imports: bool,
     /// Whether to insert blank lines between different import groups.
     /// - `true`: Insert one blank line between groups (default)
     /// - `false`: No blank lines between groups
@@ -100,9 +134,20 @@ impl Default for SortImportsOptions {
         Self {
             partition_by_newline: false,
             partition_by_comment: false,
+            // JHPATCH: Default for sortImports.partitionBySideEffect
+            partition_by_side_effect: false,
             sort_side_effects: false,
             order: SortOrder::default(),
             ignore_case: true,
+            // JHPATCH: Defaults for sortImports.collation, sortImports.sortSpecifiers and sortImports.hoist
+            collation: SortCollation::default(),
+            sort_specifiers: false,
+            hoist: false,
+            // JHPATCH: Defaults for sortImports.mergeDuplicates and sortImports.splitTypeSpecifiers
+            merge_duplicates: false,
+            split_type_specifiers: false,
+            // JHPATCH: Default for sortImports.combineTypeAndValueImports
+            combine_type_and_value_imports: true,
             newlines_between: true,
             internal_pattern: default_internal_patterns(),
             groups: default_groups(),
@@ -152,6 +197,36 @@ impl fmt::Display for SortOrder {
             SortOrder::Desc => "DESC",
         };
         f.write_str(s)
+    }
+}
+
+// JHPATCH: sortImports.collation values
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+pub enum SortCollation {
+    /// Code point order with digit runs compared as numbers.
+    #[default]
+    Natural,
+    /// The order of `Intl.Collator('en', { sensitivity: 'base', numeric: true })`.
+    Intl,
+}
+
+impl SortCollation {
+    pub const fn is_intl(self) -> bool {
+        matches!(self, Self::Intl)
+    }
+}
+
+impl FromStr for SortCollation {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "natural" => Ok(Self::Natural),
+            "intl" => Ok(Self::Intl),
+            _ => Err(
+                "Value not supported for SortCollation. Supported values are 'natural' and 'intl'.",
+            ),
+        }
     }
 }
 

@@ -1,14 +1,16 @@
 use oxc_allocator::ArenaVec;
 use oxc_ast::ast::*;
 use oxc_span::GetSpan;
+use smallvec::SmallVec;
 
 use crate::{
-    Format, FormatTrailingCommas, JsLabels, TrailingSeparator,
+    Format, FormatTrailingCommas, JsLabels, SortImportsOptions, TrailingSeparator,
     ast_nodes::{AstNode, AstNodes},
     format_args,
     formatter::{
         JsFormatter, prelude::*, separated::FormatSeparatedIter, trivia::FormatLeadingComments,
     },
+    ir_transform::sort_imports::collation::{compare_names, normalize_name},
     print::semicolon::{FormatContentWithSemicolon, OptionalSemicolon},
     utils::{
         object::should_preserve_string_quote,
@@ -121,6 +123,20 @@ impl<'a> Format<'a, JsFormatContext<'a>>
 
         let should_insert_space_around_brackets = f.options().bracket_spacing.value();
 
+        // JHPATCH: Sort named specifiers (sortImports.sortSpecifiers)
+        let mut named_specifiers: SmallVec<[_; 8]> = specifiers_iter.collect();
+        if let Some(sort_imports) = &f.options().sort_imports
+            && sort_imports.sort_specifiers
+            && named_specifiers.len() > 1
+            && let AstNodes::ImportDeclaration(declaration) = self.parent()
+            && !f
+                .comments()
+                .has_comment_in_range(declaration.span.start, declaration.source.span.start)
+        {
+            sort_named_specifiers(&mut named_specifiers, sort_imports);
+        }
+        let mut specifiers_iter = named_specifiers.into_iter().peekable();
+
         if self.is_empty() {
             write!(f, ["{}"]);
         } else if self.len() == 1
@@ -173,6 +189,34 @@ impl<'a> Format<'a, JsFormatContext<'a>>
                 ]
             );
         }
+    }
+}
+
+// JHPATCH: Sort named specifiers (sortImports.sortSpecifiers)
+/// Orders named specifiers like `@ianvs/prettier-plugin-sort-imports`:
+/// value specifiers before inline `type` specifiers, then by local name.
+fn sort_named_specifiers<'a>(
+    specifiers: &mut [&AstNode<'a, ImportDeclarationSpecifier<'a>>],
+    options: &SortImportsOptions,
+) {
+    let mut keyed: SmallVec<[_; 8]> = specifiers
+        .iter()
+        .map(|&node| {
+            let ImportDeclarationSpecifier::ImportSpecifier(specifier) = node.as_ref() else {
+                unreachable!("default and namespace specifiers are written before named ones");
+            };
+            let name = normalize_name(specifier.local.name.as_str(), options);
+            (specifier.import_kind.is_type(), name, node)
+        })
+        .collect();
+    keyed.sort_by(|(a_is_type, a_name, _), (b_is_type, b_name, _)| {
+        a_is_type.cmp(b_is_type).then_with(|| {
+            let ordering = compare_names(a_name, b_name, options);
+            if options.order.is_desc() { ordering.reverse() } else { ordering }
+        })
+    });
+    for (slot, (_, _, node)) in specifiers.iter_mut().zip(keyed) {
+        *slot = node;
     }
 }
 

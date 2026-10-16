@@ -30,6 +30,14 @@ describe("Markdown", () => {
     expect(single.code).toBe("[x](u 't')\n");
   });
 
+  it("applies markdown.lazyCodeSpanContinuation", async () => {
+    const source = "- a `b\n  c` d\n";
+    expect((await format("a.md", source)).code).toBe(source);
+    const result = await format("a.md", source, { markdown: { lazyCodeSpanContinuation: true } });
+    expect(result.errors).toStrictEqual([]);
+    expect(result.code).toBe("- a `b\nc` d\n");
+  });
+
   it("formats YAML front matter", async () => {
     const result = await format("a.md", "---\ntitle:   Home\n---\n#  Hi\n");
     expect(result.errors).toStrictEqual([]);

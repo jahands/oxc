@@ -249,7 +249,7 @@ impl SourceFormatter {
         language: PrettierLanguage,
         config: &FormatConfig,
     ) -> Result<String, OxcDiagnostic> {
-        use PrettierLanguage::{Angular, Astro, Glimmer, Html, Svelte, Vue};
+        use PrettierLanguage::{Angular, Astro, Glimmer, Html, Mdx, Svelte, Vue};
 
         let mut prettier_options = to_prettier(config);
         inject_parser(&mut prettier_options, language.parser());
@@ -261,7 +261,11 @@ impl SourceFormatter {
         }
         // Languages that embed JS/TS code.
         // Expressions like `__vue_expression` and `__ng_directive` are not supported yet.
-        if matches!(language, Vue | Svelte | Astro) {
+        // JHPATCH: Format JS in MDX with oxc_formatter when sortImports is enabled, so its imports are sorted
+        // MDX ESM blocks and code blocks use `oxc_formatter` only when imports are sorted.
+        if matches!(language, Vue | Svelte | Astro)
+            || (matches!(language, Mdx) && config.is_sort_imports_enabled())
+        {
             inject_oxfmt_plugin_payload(&mut prettier_options, config, path);
         }
         inject_opt_in_plugin_payloads(&mut prettier_options, language, config);

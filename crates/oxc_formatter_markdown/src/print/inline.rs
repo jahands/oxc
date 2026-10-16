@@ -460,7 +460,19 @@ pub fn collect_inlines<'a>(
                         let printed = print_code_span(c, f);
                         code_span_joined = !printed.contains('\n');
                         code_span_tail = printed.rsplit('\n').next();
-                        parts.push_lines(printed, Atom::VerbatimLine);
+                        // JHPATCH: Print code span continuation lines at column 0 (markdown.lazyCodeSpanContinuation)
+                        // A continuation line with leading whitespace would lose it to the container's column
+                        let separator = if f.options().lazy_code_span_continuation
+                            && printed
+                                .split('\n')
+                                .skip(1)
+                                .all(|line| !line.starts_with([' ', '\t']))
+                        {
+                            Atom::LazyLine
+                        } else {
+                            Atom::VerbatimLine
+                        };
+                        parts.push_lines(printed, separator);
                     }
                     Inline::Image(img) => link::collect_image(img, parts, f),
                     Inline::HtmlInline(h) => {

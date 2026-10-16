@@ -60,6 +60,10 @@ pub struct JsFormatOptions {
     /// - `true` - Use curious ternaries, with the question mark after the condition.
     /// - `false` - Retain the default behavior of ternaries; keep question marks on the same line as the consequent.
     pub experimental_ternaries: bool,
+    // JHPATCH: prettierCompat option
+    /// Follow a newer Prettier version's output where the formatter keeps an earlier Prettier style.
+    /// Defaults to None (the formatter's own style).
+    pub prettier_compat: Option<PrettierCompat>,
 
     /// Sort import statements. By default disabled.
     pub sort_imports: Option<SortImportsOptions>,
@@ -223,6 +227,8 @@ impl fmt::Display for JsFormatOptions {
         writeln!(f, "Attribute Position: {}", self.attribute_position)?;
         writeln!(f, "Expand lists: {}", self.expand)?;
         writeln!(f, "Operator position: {}", self.operator_position)?;
+        // JHPATCH: prettierCompat option
+        writeln!(f, "Prettier compat: {:?}", self.prettier_compat)?;
         writeln!(f, "Sort imports: {:?}", self.sort_imports)?;
         writeln!(f, "Sort tailwindcss: {:?}", self.sort_tailwindcss)?;
         writeln!(f, "JSDoc: {:?}", self.jsdoc)
@@ -644,6 +650,27 @@ impl FromStr for BracketSameLine {
             Err(_) => Err(
                 "Value not supported for BracketSameLine. Supported values are 'true' and 'false'.",
             ),
+        }
+    }
+}
+
+// JHPATCH: prettierCompat values
+/// The Prettier version whose output is followed over the formatter's style holds
+/// (`DIVERGENCES.md` entries with `Why: style-hold`).
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum PrettierCompat {
+    /// Prettier 3.9: a union that does not fit first retries flat on the indented next line,
+    /// and a conditional-type branch puts the first member behind `? ` / `: `.
+    V3_9,
+}
+
+impl FromStr for PrettierCompat {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "3.9" => Ok(Self::V3_9),
+            _ => Err("Value not supported for PrettierCompat"),
         }
     }
 }

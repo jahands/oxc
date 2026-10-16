@@ -28,6 +28,9 @@ pub enum Atom<'a> {
     /// A line break inside a verbatim inline construct (HTML, liquid, code span):
     /// the next line resumes at the container's content column, the only indention the parser strips.
     VerbatimLine,
+    // JHPATCH: Column-0 line break (markdown.lazyCodeSpanContinuation)
+    /// A line break that resumes at column 0, without the containers' indention or `>` markers.
+    LazyLine,
 }
 
 impl<'a> Format<'a, MarkdownFormatContext<'a>> for Atom<'a> {
@@ -39,6 +42,9 @@ impl<'a> Format<'a, MarkdownFormatContext<'a>> for Atom<'a> {
             // (checkbox, tab width) is not stripped by the parser and must not be printed here
             Atom::VerbatimLine => write!(f, dedent_to_root(&hard_line_break())),
             Atom::HardLine => write!(f, hard_line_break()),
+            // JHPATCH: Column-0 line break (markdown.lazyCodeSpanContinuation)
+            // A newline inside a text is printed as is
+            Atom::LazyLine => write!(f, text("\n")),
         }
     }
 }

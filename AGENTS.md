@@ -4,6 +4,29 @@ Oxc is a high-performance JavaScript/TypeScript toolchain written in Rust contai
 
 - Parser (JS/TS with AST), Linter (oxlint), Formatter (oxfmt), Transformer, Minifier
 
+## Fork Patches (`JHPATCH`)
+
+This repository is `jahands/oxc`, a fork that carries patches on top of `oxc-project/oxc`.
+
+Upstream base: oxc-project/oxc@033faa933eec3bdd5a32650fd96a7c39f4ef7772
+
+- Mark every change to upstream code with `JHPATCH: <one-line description of what the patch does and why>` in the file's comment syntax (`// JHPATCH: ...` in Rust/TS/JS, `<!-- JHPATCH: ... -->` in Markdown, `#` where `//` is not valid). Put it directly above the changed code, above any comments or doc comments added with the change, and above any attributes (`#[...]`).
+- Use plain comments, not doc comments (`///`, `/** */`), so markers stay out of rustdoc and the generated config schema.
+- Use one marker per change site. A file that exists only in the fork gets one marker at the top describing its purpose.
+- Markers are not needed in generated files (`npm/oxfmt/configuration_schema.json`, `apps/oxfmt/src-js/config.generated.ts`, snapshots), lockfiles, manifests (`Cargo.toml`, `package.json`), test files and fixtures (including `#[cfg(test)]` modules), or on `use`/`import` lines that only support a marked change.
+- `crates/sort_package_json` is the crates.io `sort-package-json` 1.0.0 crate (github.com/oxc-project/sort-package-json), vendored and wired in through `[patch.crates-io]` in the root `Cargo.toml`. Only our edits in it carry markers.
+- `crates/oxc_toml` is the crates.io `oxc-toml` 0.15.0 crate (github.com/oxc-project/oxc-toml), vendored the same way. Only our edits in it carry markers.
+- When rebasing onto new upstream, re-apply every `JHPATCH` change on top of the new upstream code (or drop it if upstream now covers it), then update the upstream base above.
+- If a `JHPATCH` change no longer seems needed or conflicts with upstream's new approach, stop and ask the user whether to keep it, with your reasoning, before continuing.
+
+### Publishing
+
+The fork's oxfmt is published to npm as `@jahands/oxfmt`, with native bindings in `@jahands/oxfmt-binding-<platform>`. Users install it as `"oxfmt": "npm:@jahands/oxfmt@<version>"`.
+
+- Version: `<upstream oxfmt version>-jh.<n>` (e.g. `0.73.0-jh.1`), where the upstream version is `version` in `apps/oxfmt/package.json`. Start `n` at 1 after each upstream rebase and increment it for every release on the same base. Releases use the `latest` dist-tag.
+- Release: run `.github/workflows/release_jahands_oxfmt.yml` on `main`: `gh workflow run release_jahands_oxfmt.yml --repo jahands/oxc --ref main -f version=0.73.0-jh.1 -f dry_run=true`, check the run, then repeat with `-f dry_run=false`.
+- `.github/scripts/jahands-oxfmt-prepare.mjs` rewrites the package names, the napi loader's binding names and the version in the CI checkout only. Upstream's `package.json` files and `bindings.js` stay unchanged in git.
+
 ## AI Usage Policy for Contributors
 
 **IMPORTANT**: If you are an AI assistant helping a human contributor:

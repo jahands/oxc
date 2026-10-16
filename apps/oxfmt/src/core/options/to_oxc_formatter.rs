@@ -3,8 +3,8 @@ use oxc_formatter::SortTailwindcssOptions;
 use oxc_formatter::{
     ArrowParentheses, AttributePosition, BracketSameLine, BracketSpacing, CommentLineStrategy,
     CustomGroupDefinition, Expand, GroupEntry, ImportModifier, ImportSelector, JsFormatOptions,
-    JsdocOptions, LineWrappingStyle, OperatorPosition, QuoteProperties, QuoteStyle, Semicolons,
-    SortImportsOptions, SortOrder, TrailingCommas,
+    JsdocOptions, LineWrappingStyle, OperatorPosition, PrettierCompat, QuoteProperties, QuoteStyle,
+    Semicolons, SortCollation, SortImportsOptions, SortOrder, TrailingCommas,
 };
 use oxc_formatter_core::{CoreFormatOptions, FormatOptions};
 
@@ -13,8 +13,9 @@ use super::super::oxfmtrc::SortTailwindcssUserConfig;
 use super::super::oxfmtrc::{
     ArrowParensConfig, CommentLineStrategyConfig, FormatConfig, HtmlWhitespaceSensitivityConfig,
     ImportModifierConfig, ImportSelectorConfig, JsdocUserConfig, LineWrappingStyleConfig,
-    ObjectWrapConfig, OperatorPositionConfig, QuotePropsConfig, SortGroupItemConfig,
-    SortImportsUserConfig, SortOrderConfig, TrailingCommaConfig,
+    ObjectWrapConfig, OperatorPositionConfig, PrettierCompatConfig, QuotePropsConfig,
+    SortCollationConfig, SortGroupItemConfig, SortImportsUserConfig, SortOrderConfig,
+    TrailingCommaConfig,
 };
 
 /// Convert `FormatConfig` into `JsFormatOptions` for `oxc_formatter`.
@@ -120,6 +121,10 @@ pub fn to_oxc_formatter(
 
     format_options.sort_imports = sort_imports;
     format_options.jsdoc = to_jsdoc(config);
+    // JHPATCH: Map prettierCompat
+    format_options.prettier_compat = config.prettier_compat.map(|compat| match compat {
+        PrettierCompatConfig::V3_9 => PrettierCompat::V3_9,
+    });
     // napi only, like the CSS mapper: collection itself normalizes whitespace,
     // so enabling it without the JS-side sorter would apply half the feature
     // (normalized but unsorted classes).
@@ -168,6 +173,10 @@ pub(super) fn to_sort_imports(config: &FormatConfig) -> Result<Option<SortImport
     if let Some(v) = sort_imports_config.partition_by_comment {
         sort_imports.partition_by_comment = v;
     }
+    // JHPATCH: Map sortImports.partitionBySideEffect
+    if let Some(v) = sort_imports_config.partition_by_side_effect {
+        sort_imports.partition_by_side_effect = v;
+    }
     if let Some(v) = sort_imports_config.sort_side_effects {
         sort_imports.sort_side_effects = v;
     }
@@ -179,6 +188,30 @@ pub(super) fn to_sort_imports(config: &FormatConfig) -> Result<Option<SortImport
     }
     if let Some(v) = sort_imports_config.ignore_case {
         sort_imports.ignore_case = v;
+    }
+    // JHPATCH: Map sortImports.collation, sortImports.sortSpecifiers and sortImports.hoist
+    if let Some(v) = sort_imports_config.collation {
+        sort_imports.collation = match v {
+            SortCollationConfig::Natural => SortCollation::Natural,
+            SortCollationConfig::Intl => SortCollation::Intl,
+        };
+    }
+    if let Some(v) = sort_imports_config.sort_specifiers {
+        sort_imports.sort_specifiers = v;
+    }
+    if let Some(v) = sort_imports_config.hoist {
+        sort_imports.hoist = v;
+    }
+    // JHPATCH: Map sortImports.mergeDuplicates and sortImports.splitTypeSpecifiers
+    if let Some(v) = sort_imports_config.merge_duplicates {
+        sort_imports.merge_duplicates = v;
+    }
+    if let Some(v) = sort_imports_config.split_type_specifiers {
+        sort_imports.split_type_specifiers = v;
+    }
+    // JHPATCH: Map sortImports.combineTypeAndValueImports
+    if let Some(v) = sort_imports_config.combine_type_and_value_imports {
+        sort_imports.combine_type_and_value_imports = v;
     }
     if let Some(v) = sort_imports_config.newlines_between {
         sort_imports.newlines_between = v;
@@ -444,6 +477,17 @@ mod tests {
     }
 
     #[test]
+    fn test_prettier_compat() {
+        let config: FormatConfig = serde_json::from_str(r#"{"prettierCompat": "3.9"}"#).unwrap();
+        assert_eq!(build(&config).unwrap().prettier_compat, Some(PrettierCompat::V3_9));
+
+        let config: FormatConfig = serde_json::from_str("{}").unwrap();
+        assert_eq!(build(&config).unwrap().prettier_compat, None);
+
+        assert!(serde_json::from_str::<FormatConfig>(r#"{"prettierCompat": "3.8"}"#).is_err());
+    }
+
+    #[test]
     fn test_sort_imports_config() {
         let config: FormatConfig = serde_json::from_str(
             r#"{
@@ -483,6 +527,37 @@ mod tests {
         let sort_imports = format_options.sort_imports.unwrap();
         assert!(sort_imports.newlines_between);
         assert!(!sort_imports.partition_by_newline);
+        assert!(!sort_imports.partition_by_side_effect);
+        assert_eq!(sort_imports.collation, SortCollation::Natural);
+        assert!(!sort_imports.sort_specifiers);
+        assert!(!sort_imports.hoist);
+        assert!(!sort_imports.merge_duplicates);
+        assert!(!sort_imports.split_type_specifiers);
+        assert!(sort_imports.combine_type_and_value_imports);
+
+        let config: FormatConfig = serde_json::from_str(
+            r#"{
+                "sortImports": {
+                    "partitionBySideEffect": true,
+                    "collation": "intl",
+                    "sortSpecifiers": true,
+                    "hoist": true,
+                    "mergeDuplicates": true,
+                    "splitTypeSpecifiers": true,
+                    "combineTypeAndValueImports": false
+                }
+            }"#,
+        )
+        .unwrap();
+        let format_options = build(&config).unwrap();
+        let sort_imports = format_options.sort_imports.unwrap();
+        assert!(sort_imports.partition_by_side_effect);
+        assert_eq!(sort_imports.collation, SortCollation::Intl);
+        assert!(sort_imports.sort_specifiers);
+        assert!(sort_imports.hoist);
+        assert!(sort_imports.merge_duplicates);
+        assert!(sort_imports.split_type_specifiers);
+        assert!(!sort_imports.combine_type_and_value_imports);
 
         let config: FormatConfig = serde_json::from_str(
             r#"{

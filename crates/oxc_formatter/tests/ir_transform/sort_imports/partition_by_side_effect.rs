@@ -1,0 +1,339 @@
+use super::super::assert_format;
+
+#[test]
+fn should_not_sort_across_side_effect_imports() {
+    assert_format(
+        r#"
+import { z } from "z";
+import { y } from "y";
+import "./setup";
+import { b } from "b";
+import { a } from "a";
+"#,
+        r#"{ "sortImports": { "partitionBySideEffect": true, "newlinesBetween": false } }"#,
+        r#"
+import { y } from "y";
+import { z } from "z";
+import "./setup";
+import { a } from "a";
+import { b } from "b";
+"#,
+    );
+    // Without the option, the side effect import keeps its slot and the others are sorted across it.
+    assert_format(
+        r#"
+import { z } from "z";
+import { y } from "y";
+import "./setup";
+import { b } from "b";
+import { a } from "a";
+"#,
+        r#"{ "sortImports": { "newlinesBetween": false } }"#,
+        r#"
+import { a } from "a";
+import { b } from "b";
+import "./setup";
+import { y } from "y";
+import { z } from "z";
+"#,
+    );
+}
+
+#[test]
+fn should_add_blank_lines_around_side_effect_runs() {
+    assert_format(
+        r#"
+import "zx/globals";
+import { program } from "commander";
+import { b } from "b";
+import "./polyfill";
+import "./setup";
+import { a } from "a";
+"#,
+        r#"{ "sortImports": { "partitionBySideEffect": true } }"#,
+        r#"
+import "zx/globals";
+
+import { b } from "b";
+import { program } from "commander";
+
+import "./polyfill";
+import "./setup";
+
+import { a } from "a";
+"#,
+    );
+    // A `{ "newlinesBetween": true }` marker anywhere enables the blank lines.
+    assert_format(
+        r#"
+import { b } from "b";
+import "./setup";
+import { a } from "a";
+"#,
+        r#"{
+            "sortImports": {
+                "partitionBySideEffect": true,
+                "newlinesBetween": false,
+                "groups": ["value-external", { "newlinesBetween": true }, "unknown"]
+            }
+        }"#,
+        r#"
+import { b } from "b";
+
+import "./setup";
+
+import { a } from "a";
+"#,
+    );
+}
+
+#[test]
+fn should_skip_blank_line_before_commented_side_effect_after_group_without_newline() {
+    // `type-import` is the last group, so no boundary after it inserts newlines.
+    let config = r#"{
+        "sortImports": {
+            "partitionBySideEffect": true,
+            "newlinesBetween": false,
+            "groups": ["value-external", { "newlinesBetween": true }, "type-import"]
+        }
+    }"#;
+    assert_format(
+        r#"
+import type { T } from "t";
+// leading comment
+import "./side";
+import { a } from "a";
+import "./side2";
+import type { U } from "u";
+"#,
+        config,
+        r#"
+import type { T } from "t";
+// leading comment
+import "./side";
+
+import { a } from "a";
+
+import "./side2";
+
+import type { U } from "u";
+"#,
+    );
+    // After `value-external`, the boundary to `type-import` inserts newlines.
+    assert_format(
+        r#"
+import { a } from "a";
+// leading comment
+import "./side";
+"#,
+        config,
+        r#"
+import { a } from "a";
+
+// leading comment
+import "./side";
+"#,
+    );
+}
+
+#[test]
+fn should_skip_blank_line_before_side_effect_after_trailing_comment() {
+    let config = r#"{
+        "sortImports": {
+            "partitionBySideEffect": true,
+            "newlinesBetween": false,
+            "groups": ["value-external", { "newlinesBetween": true }, "type-import"]
+        }
+    }"#;
+    assert_format(
+        r#"
+import type { T } from "t"; // trailing comment
+import "./side";
+import { a } from "a";
+"#,
+        config,
+        r#"
+import type { T } from "t"; // trailing comment
+import "./side";
+
+import { a } from "a";
+"#,
+    );
+}
+
+#[test]
+fn should_keep_suppressed_imports_in_place_like_side_effects() {
+    assert_format(
+        r#"
+import { c } from "c";
+import { b } from "b";
+// prettier-ignore
+import   { x }   from "x";
+import "./side";
+import { a } from "a";
+"#,
+        r#"{ "sortImports": { "partitionBySideEffect": true } }"#,
+        r#"
+import { b } from "b";
+import { c } from "c";
+
+// prettier-ignore
+import   { x }   from "x";
+import "./side";
+
+import { a } from "a";
+"#,
+    );
+    // Without the option, a suppressed import ends the run and keeps its surrounding lines.
+    assert_format(
+        r#"
+import { c } from "c";
+import { b } from "b";
+// prettier-ignore
+import   { x }   from "x";
+import { a } from "a";
+"#,
+        r#"{ "sortImports": {} }"#,
+        r#"
+import { b } from "b";
+import { c } from "c";
+// prettier-ignore
+import   { x }   from "x";
+import { a } from "a";
+"#,
+    );
+}
+
+#[test]
+fn should_have_no_effect_when_side_effects_are_sorted() {
+    assert_format(
+        r#"
+import { b } from "b";
+import "./setup";
+import { a } from "a";
+"#,
+        r#"{
+            "sortImports": {
+                "partitionBySideEffect": true,
+                "sortSideEffects": true,
+                "newlinesBetween": false
+            }
+        }"#,
+        r#"
+import { a } from "a";
+import { b } from "b";
+import "./setup";
+"#,
+    );
+}
+
+#[test]
+fn should_print_empty_named_imports_as_side_effect_imports() {
+    assert_format(
+        r#"
+import { z } from "z";
+import {} from "./setup";
+import { b } from "b";
+import { a } from "a";
+import {} from "./data.json" with { type: "json" };
+import type {} from "./types";
+"#,
+        r#"{ "sortImports": { "partitionBySideEffect": true, "newlinesBetween": false } }"#,
+        r#"
+import { z } from "z";
+import "./setup";
+import { a } from "a";
+import { b } from "b";
+import "./data.json" with { type: "json" };
+import type {} from "./types";
+"#,
+    );
+    // With hoist, an empty named import gets the blank lines of a side effect import.
+    assert_format(
+        r#"
+import { z } from "z";
+import {} from "./setup";
+const x = 1;
+import { a } from "a";
+"#,
+        r#"{ "sortImports": { "partitionBySideEffect": true, "hoist": true, "mergeDuplicates": true } }"#,
+        r#"
+import { z } from "z";
+
+import "./setup";
+
+import { a } from "a";
+
+const x = 1;
+"#,
+    );
+}
+
+#[test]
+fn should_skip_blank_line_before_side_effect_with_comment_on_its_line() {
+    let config = r#"{
+        "sortImports": {
+            "partitionBySideEffect": true,
+            "newlinesBetween": false,
+            "groups": ["value-external", { "newlinesBetween": true }, "type-import"]
+        }
+    }"#;
+    assert_format(
+        r#"
+import type { T } from "t";
+/* About `side`. */ import "./side";
+"#,
+        config,
+        r#"
+import type { T } from "t";
+/* About `side`. */ import "./side";
+"#,
+    );
+}
+
+#[test]
+fn should_read_trailing_comments_of_the_source_before_hoist() {
+    let config = r#"{
+        "sortImports": {
+            "hoist": true,
+            "partitionBySideEffect": true,
+            "newlinesBetween": false,
+            "groups": ["value-external", { "newlinesBetween": true }, "type-import"]
+        }
+    }"#;
+    // The trailing comment only counts when the import came right before the side effect import.
+    assert_format(
+        r#"
+import type { T } from "t"; // trailing comment
+f();
+import "./side";
+"#,
+        config,
+        r#"
+import type { T } from "t"; // trailing comment
+
+import "./side";
+
+f();
+"#,
+    );
+    // A suppressed import with a trailing comment is followed by a blank line
+    // when the next import did not start on the line after it.
+    assert_format(
+        r#"
+import "./setup";
+// prettier-ignore
+import { d, e } from "react"; // trailing comment
+
+import "./side";
+"#,
+        config,
+        r#"
+import "./setup";
+// prettier-ignore
+import { d, e } from "react"; // trailing comment
+
+import "./side";
+"#,
+    );
+}

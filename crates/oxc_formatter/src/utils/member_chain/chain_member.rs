@@ -4,6 +4,7 @@ use crate::{
     ast_nodes::{AstNode, AstNodes},
     format_args,
     formatter::{JsFormatter, prelude::*, trivia::FormatLeadingComments},
+    print::FormatChainLinkArguments,
     utils::{call_expression::callee_opener, statement_body::write_comments_before_opener},
     write,
 };
@@ -108,7 +109,8 @@ impl<'a> Format<'a, JsFormatContext<'a>> for ChainMember<'a, '_> {
                         [
                             expression.optional().then_some("?."),
                             expression.type_arguments(),
-                            expression.arguments()
+                            // JHPATCH: Do not hug a sole multiline template in a non-head member chain call, as Prettier does
+                            FormatChainLinkArguments(expression.arguments())
                         ]
                     );
                     expression.format_trailing_comments(f);

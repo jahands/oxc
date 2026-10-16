@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "tsdown";
 
 const require = createRequire(import.meta.url);
@@ -73,6 +74,23 @@ export default defineConfig({
     },
   },
   plugins: [
+    // JHPATCH: Route prettier-plugin-tailwindcss's Astro import to the proxy (astro.useProjectPlugin)
+    {
+      // `prettier-plugin-tailwindcss` wraps the Astro parsers once per process,
+      // the proxy forwards them to the Astro plugin of each format call (bundled or `astro.useProjectPlugin`)
+      name: "redirect-tailwind-astro-import",
+      resolveId(source, importer) {
+        if (
+          source === "prettier-plugin-astro"
+          && importer !== undefined
+          && /[\\/]prettier-plugin-tailwindcss[\\/]/.test(importer)
+        ) {
+          return fileURLToPath(
+            new URL("./src-js/libs/prettier-plugin-astro-proxy.ts", import.meta.url),
+          );
+        }
+      },
+    },
     {
       // Patch `prettier-plugin-astro`:
       // - Disable Sass formatting, see `DIVERGENCES.md#astro-style-lang-sass` for details.

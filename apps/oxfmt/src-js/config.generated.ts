@@ -41,9 +41,11 @@ export type JsdocUserConfig = boolean | JsdocConfig;
 export type CommentLineStrategyConfig = "singleLine" | "multiline" | "keep";
 export type LineWrappingStyleConfig = "greedy" | "balance";
 export type ObjectWrapConfig = "preserve" | "collapse";
+export type PrettierCompatConfig = "3.9";
 export type ProseWrapConfig = "always" | "never" | "preserve";
 export type QuotePropsConfig = "as-needed" | "consistent" | "preserve";
 export type SortImportsUserConfig = boolean | SortImportsConfig;
+export type SortCollationConfig = "natural" | "intl";
 /**
  * Modifier matching the import characteristics in `customGroups` (see `sortImports.groups` for semantics).
  */
@@ -67,6 +69,7 @@ export type ImportSelectorConfig =
 export type SortGroupItemConfig = NewlinesBetweenMarker | string | string[];
 export type SortOrderConfig = "asc" | "desc";
 export type SortPackageJsonUserConfig = boolean | SortPackageJsonConfig;
+export type SortPackageJsonPresetConfig = "oxfmt" | "sort-package-json";
 export type SortTailwindcssUserConfig = boolean | SortTailwindcssConfig;
 export type SvelteUserConfig = boolean | SvelteConfig;
 export type TrailingCommaConfig = "all" | "es5" | "none";
@@ -200,6 +203,12 @@ export interface Oxfmtrc {
    */
   jsxSingleQuote?: boolean;
   /**
+   * Options for Markdown files and Markdown embedded in other languages.
+   *
+   * - Languages: Markdown
+   */
+  markdown?: MarkdownConfig;
+  /**
    * How to wrap object literals when they could fit on one line or span multiple lines.
    *
    * By default, formats objects as multi-line if there is a newline prior to the first property.
@@ -216,6 +225,16 @@ export interface Oxfmtrc {
    * - Default: `[]`
    */
   overrides?: OxfmtOverrideConfig[];
+  /**
+   * Follow a newer Prettier version's output where Oxfmt deliberately keeps an earlier Prettier style.
+   *
+   * - `"3.9"`: a union type that does not fit on the line first retries flat on the indented next line,
+   * and only then breaks one member per line; a union in a conditional type branch starts behind `? ` / `: `
+   *
+   * - Languages: JS, JSX, TS, TSX
+   * - Default: Disabled
+   */
+  prettierCompat?: PrettierCompatConfig;
   /**
    * Specify the line length that the printer will wrap on.
    *
@@ -284,8 +303,9 @@ export interface Oxfmtrc {
   /**
    * Sort `package.json` keys.
    *
-   * The order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),
+   * The default order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),
    * but we believe it is clearer and easier to navigate.
+   * Set `preset` to `"sort-package-json"` for the order prettier-plugin-packagejson produces.
    *
    * - Languages: JSON (`package.json` only)
    * - Default: `true`
@@ -324,6 +344,16 @@ export interface Oxfmtrc {
    * - Overrides `.editorconfig.indent_size` (falls back to `.editorconfig.tab_width`)
    */
   tabWidth?: number;
+  /**
+   * Options for TOML files and TOML embedded in other languages (front matter, Markdown code blocks).
+   *
+   * Option names follow [prettier-plugin-toml](https://github.com/un-ts/prettier/tree/master/packages/toml),
+   * but unset options keep Taplo's defaults, which differ from the plugin's for
+   * `alignComments`, `alignSingleComments` and `allowedBlankLines`.
+   *
+   * - Languages: TOML
+   */
+  toml?: TomlConfig;
   /**
    * Print trailing commas wherever possible in multi-line comma-separated syntactic structures.
    *
@@ -386,6 +416,14 @@ export interface AstroConfig {
    * - Default: `false`
    */
   skipFrontmatter?: boolean;
+  /**
+   * Whether to use the `prettier-plugin-astro` installed in your project (e.g. `0.14.x`) instead of the bundled version.
+   * It is resolved from the directory of the config file (the current working directory for the Node.js API).
+   * Formatting fails if it cannot be resolved.
+   *
+   * - Default: `false`
+   */
+  useProjectPlugin?: boolean;
   [k: string]: unknown;
 }
 export interface JsdocConfig {
@@ -466,6 +504,20 @@ export interface JsdocConfig {
    * - Default: `false`
    */
   separateTagGroups?: boolean;
+  [k: string]: unknown;
+}
+export interface MarkdownConfig {
+  /**
+   * Print the continuation lines of a multi-line code span from column 0,
+   * without the indentation or `>` markers of the enclosing list items and blockquotes
+   * (lazy continuation lines), as Prettier does.
+   *
+   * Applies only when no continuation line starts with whitespace, so the code span reads the same.
+   * Otherwise, and when disabled, continuation lines resume at the container's content column.
+   *
+   * - Default: `false`
+   */
+  lazyCodeSpanContinuation?: boolean;
   [k: string]: unknown;
 }
 export interface OxfmtOverrideConfig {
@@ -591,6 +643,12 @@ export interface FormatConfig {
    */
   jsxSingleQuote?: boolean;
   /**
+   * Options for Markdown files and Markdown embedded in other languages.
+   *
+   * - Languages: Markdown
+   */
+  markdown?: MarkdownConfig;
+  /**
    * How to wrap object literals when they could fit on one line or span multiple lines.
    *
    * By default, formats objects as multi-line if there is a newline prior to the first property.
@@ -600,6 +658,16 @@ export interface FormatConfig {
    * - Default: `"preserve"`
    */
   objectWrap?: ObjectWrapConfig;
+  /**
+   * Follow a newer Prettier version's output where Oxfmt deliberately keeps an earlier Prettier style.
+   *
+   * - `"3.9"`: a union type that does not fit on the line first retries flat on the indented next line,
+   * and only then breaks one member per line; a union in a conditional type branch starts behind `? ` / `: `
+   *
+   * - Languages: JS, JSX, TS, TSX
+   * - Default: Disabled
+   */
+  prettierCompat?: PrettierCompatConfig;
   /**
    * Specify the line length that the printer will wrap on.
    *
@@ -668,8 +736,9 @@ export interface FormatConfig {
   /**
    * Sort `package.json` keys.
    *
-   * The order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),
+   * The default order is NOT compatible with [prettier-plugin-packagejson](https://github.com/matzkoh/prettier-plugin-packagejson),
    * but we believe it is clearer and easier to navigate.
+   * Set `preset` to `"sort-package-json"` for the order prettier-plugin-packagejson produces.
    *
    * - Languages: JSON (`package.json` only)
    * - Default: `true`
@@ -709,6 +778,16 @@ export interface FormatConfig {
    */
   tabWidth?: number;
   /**
+   * Options for TOML files and TOML embedded in other languages (front matter, Markdown code blocks).
+   *
+   * Option names follow [prettier-plugin-toml](https://github.com/un-ts/prettier/tree/master/packages/toml),
+   * but unset options keep Taplo's defaults, which differ from the plugin's for
+   * `alignComments`, `alignSingleComments` and `allowedBlankLines`.
+   *
+   * - Languages: TOML
+   */
+  toml?: TomlConfig;
+  /**
    * Print trailing commas wherever possible in multi-line comma-separated syntactic structures.
    *
    * A single-line array, for example, never gets trailing commas.
@@ -735,6 +814,38 @@ export interface FormatConfig {
   [k: string]: unknown;
 }
 export interface SortImportsConfig {
+  /**
+   * How import sources and specifier names are compared.
+   *
+   * - `"natural"`: Code point order, with digit runs compared as numbers.
+   * - `"intl"`: The order of `a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true })`,
+   * as used by `@ianvs/prettier-plugin-sort-imports`.
+   * Symbols sort before digits and digits before letters (e.g. `@scope/pkg` before `#subpath`, `a_b` before `a-b`).
+   * The whole module specifier is compared, including any `?query`.
+   * Case is always ignored; with `ignoreCase: false`, names that compare equal are ordered by code point.
+   * Non-ASCII characters sort after ASCII letters by code point, which can differ from `Intl.Collator`.
+   *
+   * - Default: `"natural"`
+   */
+  collation?: SortCollationConfig;
+  /**
+   * Let `mergeDuplicates` merge type imports and value imports of the same source,
+   * with the type import's named specifiers marked `type`.
+   *
+   * `@ianvs/prettier-plugin-sort-imports` turns this off when `importOrderTypeScriptVersion` is below 4.5.0.
+   * Has no effect with `splitTypeSpecifiers`.
+   *
+   * ```js
+   * // `true`
+   * import { a, type A } from 'a'
+   * // `false`
+   * import { a } from 'a'
+   * import type { A } from 'a'
+   * ```
+   *
+   * - Default: `true`
+   */
+  combineTypeAndValueImports?: boolean;
   /**
    * Define your own groups for matching very specific imports.
    *
@@ -799,6 +910,29 @@ export interface SortImportsConfig {
    */
   groups?: SortGroupItemConfig[];
   /**
+   * Move every top-level import into one block at the top of the file,
+   * the way `@ianvs/prettier-plugin-sort-imports` does.
+   *
+   * The block follows the hashbang, the directives (and a blank line), and the comments directly after them.
+   * A blank line separates the block from the rest of the file.
+   * An import takes along the comments between the previous statement and itself,
+   * except those on the line where the previous import starts, which stay with that import.
+   * Comments that end on a line before the first import stay at the top of the block when imports are sorted.
+   * A blank line separates an import's trailing comment from the next import's leading comment.
+   * `export ... from` statements are not moved, and imports inside `declare module` blocks are not sorted.
+   *
+   * ```js
+   * import { a } from 'a'
+   * // Used by `run`.
+   * import { b } from 'b'
+   *
+   * const x = 1
+   * ```
+   *
+   * - Default: `false`
+   */
+  hoist?: boolean;
+  /**
    * Ignore case when sorting.
    *
    * - Default: `true`
@@ -810,6 +944,30 @@ export interface SortImportsConfig {
    * - Default: `["~/", "@/", "#"]`
    */
   internalPattern?: string[];
+  /**
+   * Merge imports of the same source into one declaration,
+   * the way `@ianvs/prettier-plugin-sort-imports` does.
+   *
+   * Imports are merged within the imports that are sorted together
+   * (every top-level import with `hoist`, otherwise each run of imports, split by the `partitionBy*` options).
+   * The first import of a source takes in the later ones, with their specifiers after its own
+   * and the comments above them below its own comments.
+   * Value imports merge with value imports and type imports with type imports.
+   * With `combineTypeAndValueImports` and without `splitTypeSpecifiers`,
+   * type imports also merge with value imports as inline `type` specifiers.
+   *
+   * These are not merged: an import with a namespace specifier, two imports with a default specifier,
+   * a type import with a default specifier, side effect imports, suppressed imports,
+   * imports with different import attributes, and imports with comments outside `{ ... }`.
+   * An import that cannot merge still keeps later imports of its source from merging into an earlier one.
+   *
+   * ```js
+   * import React, { useState } from 'react'
+   * ```
+   *
+   * - Default: `false`
+   */
+  mergeDuplicates?: boolean;
   /**
    * Add newlines between groups.
    *
@@ -853,6 +1011,32 @@ export interface SortImportsConfig {
    */
   partitionByNewline?: boolean;
   /**
+   * Use side effect imports to separate imports into logical groups.
+   *
+   * When `true`, imports are not sorted across a side effect import that keeps its position
+   * (see `sortSideEffects`), or across an import suppressed with `prettier-ignore` / `oxfmt-ignore`.
+   * Suppressed imports get the same blank lines as side effect imports.
+   * An import with an empty `{}` and no comments (`import {} from 'a'`) is printed as the side effect import `import 'a'`,
+   * as `@ianvs/prettier-plugin-sort-imports` does.
+   *
+   * If any group boundary inserts newlines (`newlinesBetween: true` or a `{ "newlinesBetween": true }` marker),
+   * a run of side effect imports also gets a blank line after it, and one before it.
+   * The blank line before is left out when the run starts with a comment
+   * and no group boundary after the previous import's group inserts newlines.
+   *
+   * ```js
+   * import { b } from 'b'
+   * import { c } from 'c'
+   *
+   * import './setup'
+   *
+   * import { a } from 'a'
+   * ```
+   *
+   * - Default: `false`
+   */
+  partitionBySideEffect?: boolean;
+  /**
    * Sort side effect imports.
    *
    * Disabled by default for safety reasons.
@@ -860,6 +1044,40 @@ export interface SortImportsConfig {
    * - Default: `false`
    */
   sortSideEffects?: boolean;
+  /**
+   * Sort named specifiers inside `{ ... }`.
+   *
+   * Value specifiers come before inline `type` specifiers, then specifiers are ordered by their local name,
+   * following `collation`, `ignoreCase` and `order`.
+   * Specifier lists that contain comments are left as written.
+   *
+   * ```js
+   * import { alpha, Beta, Zed, type Alpha } from 'x'
+   * ```
+   *
+   * - Default: `false`
+   */
+  sortSpecifiers?: boolean;
+  /**
+   * Split the inline `type` specifiers of a value import into a type import,
+   * the way `@ianvs/prettier-plugin-sort-imports` does.
+   *
+   * Applies to a value import with more than one specifier, some but not all of them inline `type` specifiers.
+   * `import { type A } from 'a'` and `import { type A, type B } from 'a'` are left as written,
+   * as are imports with import attributes.
+   * Splitting runs after `mergeDuplicates`, so the new type import is not merged with other type imports
+   * of its source until the file is formatted again.
+   *
+   * With `hoist`, the comments of a split import move below the imports, as they do with Prettier.
+   *
+   * ```js
+   * import { b } from 'a'
+   * import type { A } from 'a'
+   * ```
+   *
+   * - Default: `false`
+   */
+  splitTypeSpecifiers?: boolean;
   [k: string]: unknown;
 }
 export interface CustomGroupItemConfig {
@@ -890,6 +1108,18 @@ export interface NewlinesBetweenMarker {
   [k: string]: unknown;
 }
 export interface SortPackageJsonConfig {
+  /**
+   * The field order and nested sorting rules.
+   *
+   * - `"oxfmt"`: Oxfmt's own order.
+   * - `"sort-package-json"`: The order of the [sort-package-json](https://github.com/keithamus/sort-package-json) npm package 3.5.0,
+   * which prettier-plugin-packagejson uses. `sortScripts` has no effect:
+   * `scripts` are sorted with `pre<name>` and `post<name>` next to `<name>`,
+   * unless an `npm-run-all` script runs a glob sequentially.
+   *
+   * - Default: `"oxfmt"`
+   */
+  preset?: SortPackageJsonPresetConfig;
   /**
    * Sort the `scripts` field alphabetically.
    *
@@ -968,5 +1198,90 @@ export interface SvelteConfig {
    * - Default: `"options-scripts-markup-styles"`
    */
   sortOrder?: string;
+  [k: string]: unknown;
+}
+export interface TomlConfig {
+  /**
+   * Align consecutive comments after entries and array items vertically.
+   *
+   * - Default: `false` (`prettier-plugin-toml`: `true`)
+   */
+  alignComments?: boolean;
+  /**
+   * Align consecutive entries vertically.
+   *
+   * - Default: `false`
+   */
+  alignEntries?: boolean;
+  /**
+   * When `alignComments` is enabled, also align a comment that has no neighbor.
+   *
+   * `prettier-plugin-toml` has no such option and always aligns it.
+   *
+   * - Default: `false`
+   */
+  alignSingleComments?: boolean;
+  /**
+   * The maximum number of consecutive blank lines.
+   *
+   * - Default: `2` (`prettier-plugin-toml`: `1`)
+   */
+  allowedBlankLines?: number;
+  /**
+   * Collapse arrays that fit in `printWidth` and contain no comments.
+   *
+   * - Default: `true`
+   */
+  arrayAutoCollapse?: boolean;
+  /**
+   * Expand arrays that exceed `printWidth` to multiple lines.
+   *
+   * - Default: `true`
+   */
+  arrayAutoExpand?: boolean;
+  /**
+   * Omit whitespace padding inside single-line arrays.
+   *
+   * - Default: `true`
+   */
+  compactArrays?: boolean;
+  /**
+   * Omit whitespace around `=`.
+   *
+   * - Default: `false`
+   */
+  compactEntries?: boolean;
+  /**
+   * Omit whitespace padding inside inline tables.
+   *
+   * - Default: `false`
+   */
+  compactInlineTables?: boolean;
+  /**
+   * Indent entries under tables.
+   *
+   * - Default: `false`
+   */
+  indentEntries?: boolean;
+  /**
+   * Indent subtables and arrays of tables under their parent table, if they come in order.
+   *
+   * - Default: `false`
+   */
+  indentTables?: boolean;
+  /**
+   * Alphabetically reorder keys that are not separated by blank lines.
+   *
+   * - Default: `false`
+   */
+  reorderKeys?: boolean;
+  /**
+   * Remove the blank lines at the start of the file.
+   *
+   * `prettier-plugin-toml` has no such option and always removes them.
+   *
+   * - Default: `false`
+   */
+  trimLeadingBlankLines?: boolean;
   [k: string]: unknown;
 }

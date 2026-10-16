@@ -39,6 +39,8 @@ pub use arrow_function_expression::{
     FormatJsArrowFunctionExpression, FormatJsArrowFunctionExpressionOptions,
 };
 pub use binary_like_expression::{BinaryLikeExpression, should_flatten};
+// JHPATCH: Re-export for member chain links (sole multiline template fix)
+pub use call_like_expression::FormatChainLinkArguments;
 pub use fragment::{FormatFunctionParams, FormatTypeParameters};
 pub use semicolon::write_comments_before_closing_paren;
 pub use template::embed_hug;

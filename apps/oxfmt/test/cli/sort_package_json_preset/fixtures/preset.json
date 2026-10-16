@@ -1,0 +1,5 @@
+{
+  "sortPackageJson": {
+    "preset": "sort-package-json"
+  }
+}

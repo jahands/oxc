@@ -1729,8 +1729,6 @@ dependencies = [
 [[package]]
 name = "oxc-toml"
 version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7456e981b4eef3e7c557a302720d1d2f8308ef8cd49ff51f6c00b45637e5bc08"
 
 [[package]]
 name = "oxc-yaml-parser"
@@ -3686,9 +3684,10 @@ checksum = "e8e2fb0f499abb4d162f2bedad68f5ef91a1682b5a03596ddb67efd37768d100"
 [[package]]
 name = "sort-package-json"
 version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cfd9c8970ed7caeeb9026188b0b686854f873641317a4cf4a7c64acacbf61d3"
 dependencies = [
+ "criterion2",
+ "ignore",
+ "insta",
  "serde",
  "serde_json",
 ]
