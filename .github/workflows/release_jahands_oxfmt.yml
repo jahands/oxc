@@ -27,7 +27,7 @@ jobs:
   check:
     if: github.repository == 'jahands/oxc'
     name: Check version
-    runs-on: ubuntu-slim
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
 
@@ -44,67 +44,67 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: windows-latest
+          - os: blacksmith-8vcpu-windows-2025
             target: x86_64-pc-windows-msvc
             build: pnpm run build-napi-release --target x86_64-pc-windows-msvc
 
-          - os: windows-latest
+          - os: blacksmith-8vcpu-windows-2025
             target: aarch64-pc-windows-msvc
             build: pnpm run build-napi-release --target aarch64-pc-windows-msvc
 
-          - os: windows-latest
+          - os: blacksmith-8vcpu-windows-2025
             target: i686-pc-windows-msvc
             build: pnpm run build-napi-release --target i686-pc-windows-msvc
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: x86_64-unknown-linux-gnu
             build: pnpm run build-napi-release --target x86_64-unknown-linux-gnu --use-napi-cross
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: aarch64-unknown-linux-gnu
             build: pnpm run build-napi-release --target aarch64-unknown-linux-gnu --use-napi-cross
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: armv7-unknown-linux-gnueabihf
             build: pnpm run build-napi-release --target armv7-unknown-linux-gnueabihf --use-napi-cross
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: x86_64-unknown-linux-musl
             build: pnpm run build-napi-release --target x86_64-unknown-linux-musl -x
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: aarch64-unknown-linux-musl
             build: pnpm run build-napi-release --target aarch64-unknown-linux-musl -x
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: armv7-unknown-linux-musleabihf
             build: pnpm run build-napi-release --target armv7-unknown-linux-musleabihf -x
 
-          - os: macos-latest
+          - os: blacksmith-12vcpu-macos-latest
             target: x86_64-apple-darwin
             build: pnpm run build-napi-release --target x86_64-apple-darwin
 
-          - os: macos-latest
+          - os: blacksmith-12vcpu-macos-latest
             target: aarch64-apple-darwin
             build: pnpm run build-napi-release --target aarch64-apple-darwin
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: aarch64-linux-android
             build: pnpm run build-napi-release --target aarch64-linux-android
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: armv7-linux-androideabi
             build: pnpm run build-napi-release --target armv7-linux-androideabi
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: aarch64-unknown-linux-ohos
             build: pnpm run build-napi-release --target aarch64-unknown-linux-ohos
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: powerpc64le-unknown-linux-gnu
             build: pnpm run build-napi-release --target powerpc64le-unknown-linux-gnu --use-napi-cross
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: riscv64gc-unknown-linux-gnu
             build: |
               sudo apt-get update
@@ -113,11 +113,11 @@ jobs:
               export CXX=riscv64-linux-gnu-g++
               pnpm run build-napi-release --target riscv64gc-unknown-linux-gnu
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: riscv64gc-unknown-linux-musl
             build: pnpm run build-napi-release --target riscv64gc-unknown-linux-musl -x
 
-          - os: ubuntu-latest
+          - os: blacksmith-8vcpu-ubuntu-2404
             target: s390x-unknown-linux-gnu
             build: export CFLAGS="-fuse-ld=lld" && pnpm run build-napi-release --target s390x-unknown-linux-gnu --use-napi-cross
 
@@ -163,7 +163,7 @@ jobs:
   build-freebsd:
     needs: check
     name: Build x86_64-unknown-freebsd
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     steps:
       - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
 
@@ -193,6 +193,7 @@ jobs:
   publish:
     name: Publish
     needs: [build, build-freebsd]
+    # npm trusted publishing and provenance require a GitHub-hosted runner.
     runs-on: ubuntu-latest
     permissions:
       id-token: write # npm trusted publishing and provenance
