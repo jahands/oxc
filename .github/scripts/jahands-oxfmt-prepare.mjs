@@ -28,9 +28,9 @@ const pkgPath = "npm/oxfmt/package.json";
 const pkg = JSON.parse(read(pkgPath));
 pkg.name = "@jahands/oxfmt";
 pkg.version = version;
-pkg.bugs = "https://github.com/jahands/oxc/issues";
+pkg.bugs = "https://github.com/uuid-rocks/oxc/issues";
 // npm provenance requires `repository.url` to match the publishing repository.
-pkg.repository.url = "git+https://github.com/jahands/oxc.git";
+pkg.repository.url = "git+https://github.com/uuid-rocks/oxc.git";
 pkg.napi.packageName = "@jahands/oxfmt-binding";
 write(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
 
