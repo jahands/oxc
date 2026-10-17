@@ -1,0 +1,127 @@
+# JHPATCH: Runs the fork's checks on Blacksmith runners, covering the `ci.yml` and `autofix.yml` jobs that need oxc-project's runners or apps
+name: Fork CI
+
+permissions: {}
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize]
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.ref_name != 'main' }}
+
+env:
+  INSTA_REQUIRE_FULL_MATCH: 1
+
+jobs:
+  test:
+    name: Test Linux
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    steps:
+      - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
+      - parallel:
+          - uses: oxc-project/setup-node@f46a72f95efdc55273fcd042d61c84e723b2892c # v1.4.1
+          - uses: oxc-project/setup-rust@3d6fb132fbe7cdcb66bf8ec193911c2945369d12 # v1.0.17
+            with:
+              save-cache: true
+              cache-key: jahands-test
+      - run: cargo ck
+      - run: cargo test --all-features
+      - run: git diff --exit-code
+
+  lint:
+    name: Lint
+    runs-on: blacksmith-16vcpu-ubuntu-2404
+    env:
+      CARGO_BUILD_WARNINGS: deny
+    steps:
+      - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
+      - parallel:
+          - uses: oxc-project/setup-node@f46a72f95efdc55273fcd042d61c84e723b2892c # v1.4.1
+          - uses: oxc-project/setup-rust@3d6fb132fbe7cdcb66bf8ec193911c2945369d12 # v1.0.17
+            with:
+              save-cache: true
+              cache-key: jahands-lint
+              components: clippy
+      - name: JavaScript lint
+        id: javascript-lint
+        run: |
+          pnpm --filter oxlint-app build-js
+          pnpm --filter oxfmt-app build-js
+          pnpm --filter oxc-codegen build
+          node --run lint
+        background: true
+      - run: cargo lint
+      - wait: javascript-lint
+
+  format:
+    name: Format
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
+      - parallel:
+          - uses: oxc-project/setup-node@f46a72f95efdc55273fcd042d61c84e723b2892c # v1.4.1
+          - uses: oxc-project/setup-rust@3d6fb132fbe7cdcb66bf8ec193911c2945369d12 # v1.0.17
+            with:
+              restore-cache: false
+              tools: cargo-shear@1.13.1
+              components: rustfmt
+      - run: cargo shear --check-test-targets --deny-warnings --format=github
+      - run: cargo fmt --all --check
+      - run: node --run fmt -- --check
+
+  typos:
+    name: Spell Check
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
+      - uses: crate-ci/typos@7f9d0819ca1c008ade73f4b41fa9d258d48f605b # v1.51.1
+        with:
+          files: .
+
+  doc:
+    name: Doc
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    env:
+      TOOLCHAIN: nightly-2026-09-30
+    steps:
+      - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
+      - uses: oxc-project/setup-rust@3d6fb132fbe7cdcb66bf8ec193911c2945369d12 # v1.0.17
+        with:
+          save-cache: true
+          cache-key: jahands-doc
+      - run: rustup toolchain install "${TOOLCHAIN}" --profile minimal --component rust-docs
+      - run: RUSTDOCFLAGS='-D warnings' cargo +"${TOOLCHAIN}" doc --no-deps --document-private-items --all-features -Zrustdoc-mergeable-info
+
+  test-napi-oxfmt:
+    name: Test NAPI Oxfmt
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    steps:
+      - uses: taiki-e/checkout-action@7d1e50e93dc4fb3bba58f85018fadf77898aee8b # v1.4.2
+      - parallel:
+          - uses: oxc-project/setup-node@f46a72f95efdc55273fcd042d61c84e723b2892c # v1.4.1
+          - uses: oxc-project/setup-rust@3d6fb132fbe7cdcb66bf8ec193911c2945369d12 # v1.0.17
+            with:
+              save-cache: true
+              cache-key: jahands-napi-oxfmt
+          - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+            with:
+              path: ./apps/oxfmt/conformance/fixtures/externals
+              key: oxfmt-conformance-fixtures-${{ hashFiles('apps/oxfmt/conformance/download-fixtures.js', 'apps/oxfmt/package.json') }}
+      - name: Build tests
+        run: pnpm --filter "./apps/oxfmt" build-test
+      - name: Download conformance fixtures
+        run: pnpm --filter "./apps/oxfmt" download-fixtures
+      - parallel:
+          - name: Run tests
+            run: pnpm --filter "./apps/oxfmt" test
+          - name: Run conformance tests
+            run: pnpm --filter "./apps/oxfmt" conformance
+      - name: Check generated config types
+        run: pnpm --filter "./apps/oxfmt" generate-config-types
+      - run: git diff --exit-code

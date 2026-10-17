@@ -17,7 +17,8 @@ concurrency:
 jobs:
   semgrep:
     name: Semgrep
-    runs-on: ubuntu-latest
+    # JHPATCH: Runs on a Blacksmith runner, which the fork uses for all CI
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     container:
       image: semgrep/semgrep:1.180.0
     steps:
